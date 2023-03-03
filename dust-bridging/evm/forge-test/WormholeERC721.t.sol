@@ -7,6 +7,7 @@ import {MockWormhole} from "wormhole-solidity/MockWormhole.sol";
 import {WormholeSimulator, FakeWormholeSimulator} from "wormhole-solidity/WormholeSimulator.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import "wormhole-solidity/BytesLib.sol";
+import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import "forge-std/Test.sol";
 import "forge-std/console2.sol";
@@ -21,9 +22,12 @@ contract TestCoreRelayer is Test {
     bytes32 constant minterAddress = bytes32("minter address") >> 12 * 8;
     bytes32 constant userAddress = bytes32("user address") >> 12 * 8;
     bytes32 constant baseURI = "testing base uri";
+    string constant name = "testing token name";
+    string constant symbol = "testing token symbol";
 
     IWormhole wormhole;
     WormholeSimulator wormholeSimulator;
+    WormholeERC721Upgradeable nft;
 
     function setUp() public {
         // deploy Wormhole
@@ -37,6 +41,9 @@ contract TestCoreRelayer is Test {
             mockWormhole
         );
         wormholeSimulator.setMessageFee(100);
+        WormholeERC721Upgradeable nftImplementation = new WormholeERC721Upgradeable(wormhole, minterAddress, baseURI);
+        ERC1967Proxy proxy = new ERC1967Proxy(address(nftImplementation), abi.encodeCall(nftImplementation.initialize, (name, symbol)));
+        nft = WormholeERC721Upgradeable(address(proxy));
     }
 
     /**
@@ -52,13 +59,6 @@ contract TestCoreRelayer is Test {
     }
 
     function craftValidVaa(uint16 tokenId, address evmRecipient) internal returns (bytes memory) {
-        IWormhole.Signature[] memory signatures = new IWormhole.Signature[](1);
-        signatures[0] = IWormhole.Signature({
-            r: 0,
-            s: 0,
-            v: 0,
-            guardianIndex: 0
-        });
         IWormhole.VM memory vaa = IWormhole.VM({
             version: 1,
             timestamp: 0,
@@ -69,7 +69,7 @@ contract TestCoreRelayer is Test {
             consistencyLevel: 1,
             payload: abi.encodePacked(tokenId, evmRecipient),
             guardianSetIndex: wormhole.getCurrentGuardianSetIndex(),
-            signatures: signatures,
+            signatures: new IWormhole.Signature[](0),
             hash: 0x00
         });
 
@@ -77,13 +77,13 @@ contract TestCoreRelayer is Test {
     }
 
     function testTokenURI() public {
-        WormholeERC721Upgradeable nft = new WormholeERC721Upgradeable(wormhole, minterAddress, baseURI);
-
         // TODO: write this as a unit test, i.e. independently from mint mechanism
-        bytes memory mintVaa = craftValidVaa(5, fromWormholeFormat(userAddress));
+        // Beware, modifying `tokenId` here without updating the assert will invalidate the test.
+        uint16 tokenId = 5;
+        bytes memory mintVaa = craftValidVaa(tokenId, fromWormholeFormat(userAddress));
         nft.mintFromVaa(mintVaa);
-        string memory uri = nft.tokenURI(5);
-        console2.log(uri);
+        string memory uri = nft.tokenURI(tokenId);
+        assertEq(bytes(uri), bytes("testing base uri5.json"));
     }
 
 }
