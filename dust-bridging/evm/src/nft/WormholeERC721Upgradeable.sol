@@ -282,7 +282,7 @@ contract WormholeERC721Upgradeable is
         _safeMint(evmRecipient, tokenId);
     }
 
-    function parsePayload(bytes memory message) pure internal returns (uint256 tokenId, address evmRecipient) {
+    function parsePayload(bytes memory message) internal pure returns (uint256 tokenId, address evmRecipient) {
         if (message.length != BytesLib.uint16Size + BytesLib.addressSize) {
             revert InvalidMessageLength();
         }
