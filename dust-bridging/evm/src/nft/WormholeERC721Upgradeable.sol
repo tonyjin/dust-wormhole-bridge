@@ -29,8 +29,8 @@ contract WormholeERC721Upgradeable is
     // Contract address that can mint NFTs. The mint VAA should have this as the emitter address.
     bytes32 immutable minterAddress;
     // Common URI for all NFTs handled by this contract.
-    bytes32 immutable baseURI;
-    // uint8 immutable baseURISize;
+    bytes32 immutable baseUri;
+    uint8 immutable baseUriLength;
     // Wormhole chain id that valid vaas must have.
     // We only support Solana for now.
     uint16 constant sourceChainId = 1;
@@ -42,11 +42,17 @@ contract WormholeERC721Upgradeable is
     error FailedVaaParseAndVerification(string reason);
     error VaaAlreadyProcessed();
     error InvalidMessageLength();
+    error BaseUriTooLong();
 
-    constructor(IWormhole initWormhole, bytes32 initMinterAddress, bytes32 initBaseURI) {
+    constructor(IWormhole initWormhole, bytes32 initMinterAddress, bytes memory initBaseUri) {
+        if (initBaseUri.length > 32) {
+            revert BaseUriTooLong();
+        }
+
         wormhole = initWormhole;
         minterAddress = initMinterAddress;
-        baseURI = initBaseURI;
+        baseUri = bytes32(initBaseUri);
+        baseUriLength = uint8(initBaseUri.length);
     }
 
     function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
@@ -54,7 +60,133 @@ contract WormholeERC721Upgradeable is
     }
 
     function _baseURI() internal view virtual override returns (string memory) {
-        return string(abi.encodePacked(baseURI));
+        if (baseUriLength > 16) {
+            if (baseUriLength > 24) {
+                if (baseUriLength > 28) {
+                    if (baseUriLength > 30) {
+                        if (baseUriLength == 32) {
+                            return string(abi.encodePacked(bytes32(baseUri)));
+                        } else {
+                            return string(abi.encodePacked(bytes31(baseUri)));
+                        }
+                    } /*if (baseUriLength <= 30)*/ else {
+                        if (baseUriLength == 30) {
+                            return string(abi.encodePacked(bytes30(baseUri)));
+                        } else {
+                            return string(abi.encodePacked(bytes29(baseUri)));
+                        }
+                    }
+                } /*if (baseUriLength <= 28)*/ else {
+                    if (baseUriLength > 26) {
+                        if (baseUriLength == 28) {
+                            return string(abi.encodePacked(bytes28(baseUri)));
+                        } else {
+                            return string(abi.encodePacked(bytes27(baseUri)));
+                        }
+                    } /*if (baseUriLength <= 26)*/ else {
+                        if (baseUriLength == 26) {
+                            return string(abi.encodePacked(bytes26(baseUri)));
+                        } else {
+                            return string(abi.encodePacked(bytes25(baseUri)));
+                        }
+                    }
+                }
+            } /*if (baseUriLength <= 24)*/ else {
+                if (baseUriLength > 20) {
+                    if (baseUriLength > 22) {
+                        if (baseUriLength == 24) {
+                            return string(abi.encodePacked(bytes24(baseUri)));
+                        } else {
+                            return string(abi.encodePacked(bytes23(baseUri)));
+                        }
+                    } /*if (baseUriLength <= 22)*/ else {
+                        if (baseUriLength == 22) {
+                            return string(abi.encodePacked(bytes22(baseUri)));
+                        } else {
+                            return string(abi.encodePacked(bytes21(baseUri)));
+                        }
+                    }
+                } /*if (baseUriLength <= 20)*/ else {
+                    if (baseUriLength > 18) {
+                        if (baseUriLength == 20) {
+                            return string(abi.encodePacked(bytes20(baseUri)));
+                        } else {
+                            return string(abi.encodePacked(bytes19(baseUri)));
+                        }
+                    } /*if (baseUriLength <= 18)*/ else {
+                        if (baseUriLength == 18) {
+                            return string(abi.encodePacked(bytes18(baseUri)));
+                        } else {
+                            return string(abi.encodePacked(bytes17(baseUri)));
+                        }
+                    }
+                }
+            }
+        } /*if (baseUriLength <= 16)*/ else {
+            if (baseUriLength > 8) {
+                if (baseUriLength > 12) {
+                    if (baseUriLength > 14) {
+                        if (baseUriLength == 16) {
+                            return string(abi.encodePacked(bytes16(baseUri)));
+                        } else {
+                            return string(abi.encodePacked(bytes15(baseUri)));
+                        }
+                    } /*if (baseUriLength <= 14)*/ else {
+                        if (baseUriLength == 14) {
+                            return string(abi.encodePacked(bytes14(baseUri)));
+                        } else {
+                            return string(abi.encodePacked(bytes13(baseUri)));
+                        }
+                    }
+                } /*if (baseUriLength <= 12)*/ else {
+                    if (baseUriLength > 10) {
+                        if (baseUriLength == 12) {
+                            return string(abi.encodePacked(bytes12(baseUri)));
+                        } else {
+                            return string(abi.encodePacked(bytes11(baseUri)));
+                        }
+                    } /*if (baseUriLength <= 10)*/ else {
+                        if (baseUriLength == 10) {
+                            return string(abi.encodePacked(bytes10(baseUri)));
+                        } else {
+                            return string(abi.encodePacked(bytes9(baseUri)));
+                        }
+                    }
+                }
+            } /*if (baseUriLength <= 8)*/ else {
+                if (baseUriLength > 4) {
+                    if (baseUriLength > 6) {
+                        if (baseUriLength == 8) {
+                            return string(abi.encodePacked(bytes8(baseUri)));
+                        } else {
+                            return string(abi.encodePacked(bytes7(baseUri)));
+                        }
+                    } /*if (baseUriLength <= 6)*/ else {
+                        if (baseUriLength == 6) {
+                            return string(abi.encodePacked(bytes6(baseUri)));
+                        } else {
+                            return string(abi.encodePacked(bytes5(baseUri)));
+                        }
+                    }
+                } /*if (baseUriLength <= 4)*/ else {
+                    if (baseUriLength > 2) {
+                        if (baseUriLength == 4) {
+                            return string(abi.encodePacked(bytes4(baseUri)));
+                        } else {
+                            return string(abi.encodePacked(bytes3(baseUri)));
+                        }
+                    } /*if (baseUriLength <= 2)*/ else {
+                        if (baseUriLength == 2) {
+                            return string(abi.encodePacked(bytes2(baseUri)));
+                        } else if (baseUriLength == 1) {
+                            return string(abi.encodePacked(bytes1(baseUri)));
+                        } else {
+                            return "";
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /**

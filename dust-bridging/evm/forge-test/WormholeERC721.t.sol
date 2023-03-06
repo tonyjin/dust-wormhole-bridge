@@ -8,6 +8,7 @@ import {WormholeSimulator, FakeWormholeSimulator} from "wormhole-solidity/Wormho
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import "wormhole-solidity/BytesLib.sol";
 import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 import "forge-std/Test.sol";
 import "forge-std/console2.sol";
@@ -21,7 +22,7 @@ contract TestCoreRelayer is Test {
     uint16 constant sourceChainId = 1;
     bytes32 constant minterAddress = bytes32("minter address") >> 12 * 8;
     bytes32 constant userAddress = bytes32("user address") >> 12 * 8;
-    bytes32 constant baseURI = "testing base uri";
+    bytes constant baseUri = "testing base uri";
     string constant name = "testing token name";
     string constant symbol = "testing token symbol";
 
@@ -41,8 +42,9 @@ contract TestCoreRelayer is Test {
             mockWormhole
         );
         wormholeSimulator.setMessageFee(100);
-        WormholeERC721Upgradeable nftImplementation = new WormholeERC721Upgradeable(wormhole, minterAddress, baseURI);
-        ERC1967Proxy proxy = new ERC1967Proxy(address(nftImplementation), abi.encodeCall(nftImplementation.initialize, (name, symbol)));
+        WormholeERC721Upgradeable nftImplementation = new WormholeERC721Upgradeable(wormhole, minterAddress, baseUri);
+        ERC1967Proxy proxy =
+            new ERC1967Proxy(address(nftImplementation), abi.encodeCall(nftImplementation.initialize, (name, symbol)));
         nft = WormholeERC721Upgradeable(address(proxy));
     }
 
@@ -83,7 +85,6 @@ contract TestCoreRelayer is Test {
         bytes memory mintVaa = craftValidVaa(tokenId, fromWormholeFormat(userAddress));
         nft.mintFromVaa(mintVaa);
         string memory uri = nft.tokenURI(tokenId);
-        assertEq(bytes(uri), bytes("testing base uri5.json"));
+        assertEq(bytes(uri), bytes(abi.encodePacked(baseUri, Strings.toString(tokenId), string(".json"))));
     }
-
 }
