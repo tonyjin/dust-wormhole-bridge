@@ -80,7 +80,6 @@ contract TestCoreRelayer is Test {
 
     function testTokenURI() public {
         // TODO: write this as a unit test, i.e. independently from mint mechanism
-        // Beware, modifying `tokenId` here without updating the assert will invalidate the test.
         uint16 tokenId = 5;
         bytes memory mintVaa = craftValidVaa(tokenId, fromWormholeFormat(userAddress));
         nft.mintFromVaa(mintVaa);
