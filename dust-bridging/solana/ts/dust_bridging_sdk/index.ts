@@ -159,26 +159,24 @@ export class DustBridging {
     //  a couple of bytes for all the compact arrays etc.
     //So give or take we have ~1000 bytes give or take for the whitelist argument.
 
-    const whitelistBytes = 1000;
+    const whitelistBytes = 500;
     const range = (size: number) => [...Array(size).keys()];
     const chunkSize = whitelistBytes * 8;
     const chunks = Math.ceil(whitelist.length / chunkSize);
-    return range(chunks).map(chunk => {
+    return Promise.all(range(chunks).map(chunk => {
       const whitelistSlice = whitelist.slice(chunk * chunkSize, (chunk + 1) * chunkSize);
-      const bytes = range(Math.ceil(whitelistSlice/8)).map(byte => {
+      const bytes = range(Math.ceil(whitelistSlice.length/8)).map(byte => {
         let byteValue = 0;
-        for (let bit = 0; bit < 8 && byte * 8 + bit < whitelistSlice.length; ++bit) {
-          byteValue <<= 1;
-          byteValue += whitelistSlice[byte * 8 + bit];
-        }
+        for (let bit = 0; bit < 8 && byte * 8 + bit < whitelistSlice.length; ++bit)
+          byteValue += whitelistSlice[byte * 8 + bit] ? 1 << bit : 0;
         return byteValue;
       });
 
-      return this.program.methods.whitelistBulk(chunk*chunkSize, Buffer.from(bytes)).accounts({
+      return this.program.methods.whitelistBulk(chunk*whitelistBytes, Buffer.from(bytes)).accounts({
         instance: instance.address,
         authority,
-      });
-    });
+      }).instruction();
+    }));
   }
 
   async createWhitelistInstruction(
@@ -238,7 +236,7 @@ export class DustBridging {
   // ----------------------------------------- private -----------------------------------------
 
   private static isWhitelisted(whitelist: Uint8Array, tokenId: number): boolean {
-    return (whitelist[tokenId/8] & (1 << (tokenId % 8))) > 0;
+    return (whitelist[Math.floor(tokenId/8)] & (1 << (tokenId % 8))) > 0;
   }
 
   private wormholeCpiAccounts(emitter: PublicKey) {

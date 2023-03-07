@@ -19,11 +19,27 @@ const LOCALHOST = "http://localhost:8899";
 const GUARDIAN_ADDRESS = "0xbefa429d57cd18b7f8a4d91a2da9ab4af05d0fbe";
 const WORMHOLE_ID = new PublicKey(CONTRACTS.MAINNET.solana.core);
 
+const range = (size: number) => [...Array(size).keys()];
+
 describe("Dust NFT bridging", function() {
   const admin = Keypair.generate();
   const user = Keypair.generate();
   const connection = new Connection(LOCALHOST, "processed");
   const metaplex = Metaplex.make(connection).use(keypairIdentity(admin));
+  const tokenId = 3250;
+  const whitelistSize = 10000;
+
+  const tokenStandardTestCases =
+    ["NonFungible" /*, "ProgrammableNonFungible"*/] as (keyof typeof TokenStandard)[];
+  const truthValues = [true, false];
+  const allHighlevelCombinations = tokenStandardTestCases.flatMap(
+    tokenStandardName => truthValues.flatMap(useWhitelist => {
+      return {
+        tokenStandardName,
+        useWhitelist,
+      };
+    })
+  );
 
   const nftCount = (owner: Keypair) =>
     metaplex.nfts().findAllByOwner({owner: owner.publicKey}).then(arr => arr.length);
@@ -59,10 +75,9 @@ describe("Dust NFT bridging", function() {
     );
   });
 
-  const tokenStandardTestCases =
-    ["NonFungible" /*, "ProgrammableNonFungible"*/] as (keyof typeof TokenStandard)[];
-  tokenStandardTestCases.forEach(tokenStandardName =>
-  describe("NFT with token standard " + tokenStandardName, function() {
+  allHighlevelCombinations.forEach(({tokenStandardName, useWhitelist}) =>
+  describe("NFT with token standard " + tokenStandardName +
+      (useWhitelist ? " using whitelist" : ""), function() {
     const collectionMintPair = Keypair.generate();
     const collectionMint = collectionMintPair.publicKey;
     const dustBridging = new DustBridging(connection, collectionMint);
@@ -88,7 +103,10 @@ describe("Dust NFT bridging", function() {
 
         const dustInitTx = sendAndConfirmTransaction(
           connection,
-          new Transaction().add(await dustBridging.createInitializeInstruction(deployer.publicKey)),
+          new Transaction().add(await dustBridging.createInitializeInstruction(
+            deployer.publicKey,
+            useWhitelist ? whitelistSize : 0,
+          )),
           [deployer]
         );
         
@@ -100,8 +118,43 @@ describe("Dust NFT bridging", function() {
       it("as admin", initialize(admin));
     });
 
+    if (useWhitelist)
+      describe("bulk whitelisting (takes a while)", function() {
+        it("test and reset", async function() {
+          const tokenIdsToWhitelist = [0, 1, 8, whitelistSize-9, whitelistSize-2, whitelistSize-1];
+          const notWhitelisted = [2,7,9,whitelistSize-10,whitelistSize-8, whitelistSize-3];
+          const bulkWhitelistIxs = await dustBridging.createWhitelistBulkInstructions(
+            admin.publicKey,
+            range(whitelistSize).map(index => tokenIdsToWhitelist.includes(index))
+          );
+
+          for (const ix of bulkWhitelistIxs)
+            await expect(
+              sendAndConfirmTransaction(connection, new Transaction().add(ix), [admin])
+            ).to.be.fulfilled;
+          
+          for (const tokenId of tokenIdsToWhitelist)
+            expect(await dustBridging.isNftWhitelisted(tokenId)).to.equal(true);
+          
+          for (const tokenId of notWhitelisted)
+            expect(await dustBridging.isNftWhitelisted(tokenId)).to.equal(false);
+          
+          const resetWhitelistIxs = await dustBridging.createWhitelistBulkInstructions(
+            admin.publicKey,
+            range(whitelistSize).map(_ => false)
+          );
+
+          for (const ix of resetWhitelistIxs)
+            await expect(
+              sendAndConfirmTransaction(connection, new Transaction().add(ix), [admin])
+            ).to.be.fulfilled;
+          
+          for (const tokenId of tokenIdsToWhitelist)
+            expect(await dustBridging.isNftWhitelisted(tokenId)).to.equal(false);
+        })
+      });
+
     describe("BurnAndSend Ix", function() {
-      const tokenId = 3250;
       let createdNftOutput: CreateNftOutput;
       const evmRecipient = "0x" + "00123456".repeat(5);
       const burnAndSend = async (sender: Keypair) => sendAndConfirmTransaction(
@@ -153,6 +206,27 @@ describe("Dust NFT bridging", function() {
         it("when not the owner of the NFT", async function() {
           await expect(burnAndSend(admin)).to.be.rejected;
         });
+
+        if (useWhitelist) {
+          it("as the owner of the NFT before whitelisting the NFT", async function() {
+            await expect(burnAndSend(user)).to.be.rejected;
+          });
+
+          it("whitelist the NFT via whitelist instruction", async function() {
+            expect (await dustBridging.isNftWhitelisted(tokenId)).to.equal(false);
+
+            await expect(sendAndConfirmTransaction(
+              connection,
+              new Transaction().add(await dustBridging.createWhitelistInstruction(
+                admin.publicKey,
+                tokenId
+              )),
+              [admin]
+            )).to.be.fulfilled;
+
+            expect (await dustBridging.isNftWhitelisted(tokenId)).to.equal(true);
+          });
+        }
 
         it("as the owner of the NFT", async function() {
           await expect(burnAndSend(user)).to.be.fulfilled;
