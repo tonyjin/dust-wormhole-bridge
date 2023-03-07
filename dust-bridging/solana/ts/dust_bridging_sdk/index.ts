@@ -158,8 +158,8 @@ export class DustBridging {
     //  64 bytes for the signature
     //  a couple of bytes for all the compact arrays etc.
     //So give or take we have ~1000 bytes give or take for the whitelist argument.
-
-    const whitelistBytes = 500;
+    // ... and as it turned out after some testing about 990 bytes is the most we can squeeze in
+    const whitelistBytes = 990;
     const range = (size: number) => [...Array(size).keys()];
     const chunkSize = whitelistBytes * 8;
     const chunks = Math.ceil(whitelist.length / chunkSize);
