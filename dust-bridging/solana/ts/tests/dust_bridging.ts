@@ -70,7 +70,6 @@ describe("Dust NFT bridging", function() {
     //const isSizedCollection = tokenStandard === TokenStandard.ProgrammableNonFungible;
 
     before("Create NFT", async function() {
-      
       await metaplex.nfts().create({
         useNewMint: collectionMintPair,
         name: "DeGods",
@@ -165,7 +164,7 @@ describe("Dust NFT bridging", function() {
 
         it("... and that the correct Wormhole message was emitted", async function() {
           const {payload} = (await wormhole.getPostedMessage(
-            connection, dustBridging.messageAccount(createdNftOutput.mintAddress)
+            connection, DustBridging.messageAccountAddress(createdNftOutput.mintAddress)
           )).message;
 
           expect(payload.readUint16LE(0)).to.equal(tokenId);

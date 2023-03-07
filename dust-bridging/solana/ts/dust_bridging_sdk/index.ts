@@ -28,6 +28,17 @@ export class DustBridging {
   readonly collectionMint: PublicKey;
 
   static readonly programId = PROGRAM_ID;
+
+  static messageAccountAddress(nftMint: PublicKey): PublicKey {
+    return PublicKey.findProgramAddressSync(
+      [SEED_PREFIX_MESSAGE, nftMint.toBuffer()],
+      DustBridging.programId,
+    )[0];
+  }
+  
+  static tokenIdFromURI(uri: string): number {
+    return parseInt(uri.slice(uri.lastIndexOf("/") + 1, -".json".length));
+  }
   
   constructor(
     connection: Connection,
@@ -42,29 +53,38 @@ export class DustBridging {
   }
 
   async isInitialized(): Promise<boolean> {
-    const instanceData =
-      await this.program.account.instance.fetchNullable(this.instanceAddress());
-    return !!instanceData && instanceData.collectionMint.equals(this.collectionMint);
+    const instance = await this.getInstance(false);
+    return instance.isInitialized;
   }
 
-  async createInitializeInstruction(payer: PublicKey) : Promise<TransactionInstruction> {
-    if (await this.isInitialized())
-      throw Error("DustBridging already initialized for this collection");
+  async isWhitelistEnabled(): Promise<boolean> {
+    const instance = await this.getInstance();
+    return instance.collectionSize! > 0;
+  }
 
-    const collectionNft = await this.metaplex.nfts().findByMint({mintAddress: this.collectionMint});
+  async isPaused(): Promise<boolean> {
+    const instance = await this.getInstance();
+    return instance.isPaused!;
+  }
 
-    return this.program.methods.initialize().accounts({
-      instance: this.instanceAddress(),
-      payer,
-      admin: collectionNft.updateAuthorityAddress,
-      collectionMint: this.collectionMint,
-      collectionMeta: collectionNft.metadataAddress,
-      systemProgram: SystemProgram.programId,
-    }).instruction();
+  async isNftWhitelisted(nftTokenOrTokenId: PublicKey | number): Promise<boolean> {
+    const instance = await this.getInstance();
+    if (instance.collectionSize === 0)
+      return true;
+    const tokenId = (typeof nftTokenOrTokenId === "number"
+      ? nftTokenOrTokenId
+      : await this.getNftTokenId(nftTokenOrTokenId)
+    );
+    return DustBridging.isWhitelisted(instance.whitelist!, tokenId);
+  }
+
+  async getNftTokenId(nftToken: PublicKey): Promise<number> {
+    const nft = await this.getAndCheckNft(nftToken);
+    return DustBridging.tokenIdFromURI(nft.uri);
   }
 
   async getNftAttributes(nftToken: PublicKey) {
-    const nft = await this.getAndCheckNft(nftToken);
+    const nft = await this.getAndCheckNft(nftToken, true);
     
     if (!nft.jsonLoaded)
       throw Error("couldn't fetch json metadata of NFT");
@@ -72,27 +92,135 @@ export class DustBridging {
     return nft.json!.attributes!;
   }
 
+  //must also be signed by the collection's update authority
+  async createInitializeInstruction(
+    payer: PublicKey, //must be a signer of the transaction
+    collectionSize = 0,
+  ) : Promise<TransactionInstruction> {
+    const instance = await this.getInstance(false);
+    if (instance.isInitialized)
+      throw Error("DustBridging already initialized for this collection");
+
+    const collectionNft = await this.metaplex.nfts().findByMint({mintAddress: this.collectionMint});
+
+    return this.program.methods.initialize(collectionSize).accounts({
+      instance: instance.address,
+      payer,
+      updateAuthority: collectionNft.updateAuthorityAddress,
+      collectionMint: this.collectionMint,
+      collectionMeta: collectionNft.metadataAddress,
+      systemProgram: SystemProgram.programId,
+    }).instruction();
+  }
+
+  //must be signed by the update authority (i.e. admin)
+  async createSetDelegateInstruction(
+    delegate: PublicKey | null,
+  ): Promise<TransactionInstruction> {
+    const instance = await this.getInstance();
+    return this.program.methods.setDelegate(delegate).accounts({
+      instance: instance.address,
+      updateAuthority: instance.updateAuthority!,
+    }).instruction();
+  }
+
+  async createSetPausedInstruction(
+    authority: PublicKey, //either update_authority or delegate (must sign tx)
+    pause: boolean,
+  ): Promise<TransactionInstruction> {
+    const instance = await this.getInstance();
+    if (instance.isPaused === pause)
+      throw Error(`DustBridging already ${pause ? "paused" : "unpaused"}`);
+    
+    return this.program.methods.setPaused(pause).accounts({
+      instance: instance.address,
+      authority,
+    }).instruction();
+  }
+
+  //must be signed by the update authority or the delegate
+  async createWhitelistBulkInstructions(
+    authority: PublicKey,
+    whitelist: readonly boolean[]
+  ): Promise<readonly TransactionInstruction[]> {
+    const instance = await this.getInstance();
+    if (instance.collectionSize !== whitelist.length)
+      throw Error(
+        `whitelist.length (=${whitelist.length}) does not equal` +
+        `instance.collectionSize (=${instance.collectionSize})`
+      );
+    
+    //Our transaction size overhead is roughly:
+    //  32 bytes for the recent blockhash
+    //  32 bytes for the programId
+    //  32 bytes for the instance address
+    //  32 bytes for the authority
+    //  64 bytes for the signature
+    //  a couple of bytes for all the compact arrays etc.
+    //So give or take we have ~1000 bytes give or take for the whitelist argument.
+
+    const whitelistBytes = 1000;
+    const range = (size: number) => [...Array(size).keys()];
+    const chunkSize = whitelistBytes * 8;
+    const chunks = Math.ceil(whitelist.length / chunkSize);
+    return range(chunks).map(chunk => {
+      const whitelistSlice = whitelist.slice(chunk * chunkSize, (chunk + 1) * chunkSize);
+      const bytes = range(Math.ceil(whitelistSlice/8)).map(byte => {
+        let byteValue = 0;
+        for (let bit = 0; bit < 8 && byte * 8 + bit < whitelistSlice.length; ++bit) {
+          byteValue <<= 1;
+          byteValue += whitelistSlice[byte * 8 + bit];
+        }
+        return byteValue;
+      });
+
+      return this.program.methods.whitelistBulk(chunk*chunkSize, Buffer.from(bytes)).accounts({
+        instance: instance.address,
+        authority,
+      });
+    });
+  }
+
+  async createWhitelistInstruction(
+    authority: PublicKey, //either update_authority or delegate (must sign tx)
+    tokenIds: number | readonly number[]
+  ) : Promise<TransactionInstruction> {
+    const instance = await this.getInstance();
+    const tokenIdsArray = Array.isArray(tokenIds) ? tokenIds : [tokenIds];
+    if (tokenIdsArray.some(id => id < 0 || id >= instance.collectionSize!))
+      throw Error("Invalid token ID");
+    return this.program.methods.whitelist(tokenIdsArray).accounts({
+      instance: instance.address,
+      authority,
+    }).instruction();
+  }
+
+  //must also be signed by the nft's owner
   async createSendAndBurnInstruction(
-    payer: PublicKey,
+    payer: PublicKey, //must be a signer of the transaction
     nftToken: PublicKey,
     evmRecipient: string,
     batchId = 1,
   ) : Promise<TransactionInstruction> {
-    if (!await this.isInitialized())
-      throw Error("DustBridging not initialized for this collection");
-    
     if (!ethers.utils.isAddress(evmRecipient))
       throw Error("Invalid EVM recipient address");
     
-    const nft = await this.getAndCheckNft(nftToken);
+    const instance = await this.getInstance();
+    if (instance.isPaused)
+      throw Error("DustBridging is paused");
     
-    //TODO check for transcended and t00b claimed attributes?
+    const nft = await this.getAndCheckNft(nftToken) as NftWithToken;
+
+    if (instance.collectionSize! > 0) {
+      const tokenId = DustBridging.tokenIdFromURI(nft.uri);
+      if (!DustBridging.isWhitelisted(instance.whitelist!, tokenId))
+        throw Error(`NFT with tokenId ${tokenId} not yet whitelisted`);
+    }
     
-    const instance = this.instanceAddress();
     const evmRecipientArrayified = ethers.utils.zeroPad(evmRecipient, 20);
 
     return this.program.methods.burnAndSend(batchId, evmRecipientArrayified).accounts({
-      instance,
+      instance: instance.address,
       payer,
       nftOwner: nft.token.ownerAddress,
       nftToken,
@@ -100,18 +228,17 @@ export class DustBridging {
       nftMeta: nft.metadataAddress,
       nftMasteredition: nft.edition.address,
       collectionMeta: this.metaplex.nfts().pdas().metadata({mint: this.collectionMint}),
-      wormholeMessage: this.messageAccount(nft.mint.address),
+      wormholeMessage: DustBridging.messageAccountAddress(nft.mint.address),
       metadataProgram: METADATA_ID,
       tokenProgram: TOKEN_PROGRAM_ID,
-      ...this.wormholeCpiAccounts(instance),
+      ...this.wormholeCpiAccounts(instance.address),
     }).instruction();
   }
 
-  messageAccount(nftMint: PublicKey): PublicKey {
-    return PublicKey.findProgramAddressSync(
-      [SEED_PREFIX_MESSAGE, nftMint.toBuffer()],
-      DustBridging.programId,
-    )[0];
+  // ----------------------------------------- private -----------------------------------------
+
+  private static isWhitelisted(whitelist: Uint8Array, tokenId: number): boolean {
+    return (whitelist[tokenId/8] & (1 << (tokenId % 8))) > 0;
   }
 
   private wormholeCpiAccounts(emitter: PublicKey) {
@@ -146,15 +273,20 @@ export class DustBridging {
     };
   }
 
-  private instanceAddress(): PublicKey {
-    return PublicKey.findProgramAddressSync(
+  private async getInstance(mustBeInitialized = true) {
+    const address = PublicKey.findProgramAddressSync(
       [SEED_PREFIX_INSTANCE, this.collectionMint.toBuffer()],
       DustBridging.programId
     )[0];
+    const data = await this.program.account.instance.fetchNullable(address);
+    const isInitialized = !!data && data.collectionMint.equals(this.collectionMint);
+    if (mustBeInitialized && !isInitialized)
+      throw Error("DustBridging not initialized for this collection");
+    return {address, isInitialized,...data};
   }
 
-  private async getAndCheckNft(nftToken: PublicKey) {
-    const nft = await this.metaplex.nfts().findByToken({token: nftToken}) as NftWithToken;
+  private async getAndCheckNft(nftToken: PublicKey, loadJsonMetadata = false) {
+    const nft = await this.metaplex.nfts().findByToken({token: nftToken, loadJsonMetadata});
 
     if (
       !nft.collection ||

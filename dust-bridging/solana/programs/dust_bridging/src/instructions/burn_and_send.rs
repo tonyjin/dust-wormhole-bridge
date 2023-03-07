@@ -1,24 +1,16 @@
-// TODO ensure that metaplex makes all the necessary checks:
-// * that the nft is actually a verified part of the collection
-// * that all the remaining accounts are actually associated with each other in the right fashion
-
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Mint, Token};
+use anchor_spl::token::Token;
 use wormhole_anchor_sdk::wormhole;
 use metaplex_anchor_sdk::{
   metadata,
   metadata::{
-    program::ID as METADATA_ID,
     accounts::Metadata,
     instructions::{burn_nft, BurnNft},
   },
 };
 
-use crate::state::Instance;
-
-//anchor_spl does not provide this constant itself...
-pub const SEED_PREFIX_METADATA: &[u8; 8] = b"metadata";
-pub const SEED_PREFIX_MESSAGE: &[u8; 7] = b"message";
+use crate::instance::Instance;
+use crate::error::DustBridgingError;
 
 pub type EvmAddress = [u8; 20];
 
@@ -28,57 +20,18 @@ struct Message<'a> {
   evm_recipient: &'a EvmAddress,
 }
 
-#[derive(Accounts)]
-pub struct Initialize<'info> {
-  #[account(
-    init,
-    payer = payer,
-    space = Instance::SIZE,
-    seeds = [Instance::SEED_PREFIX.as_ref(), &collection_mint.key().to_bytes()],
-    bump,
-  )]
-  pub instance: Account<'info, Instance>,
-
-  #[account(mut)]
-  pub payer: Signer<'info>,
-
-  #[account(mut)]
-  pub admin: Signer<'info>,
-
-  #[account()]
-  pub collection_mint: Account<'info, Mint>,
-
-  #[account(
-    //metaplex unnecessarily includes the program id of the metadata program in its PDA seeds...
-    seeds = [SEED_PREFIX_METADATA, &METADATA_ID.to_bytes(), &collection_mint.key().to_bytes()],
-    bump,
-    seeds::program = METADATA_ID,
-    constraint = collection_meta.update_authority == admin.key(),
-  )]
-  //WARNING: anchor_spl does not check that the metadata has actually been initialized!
-  pub collection_meta: Account<'info, Metadata>,
-
-  pub system_program: Program<'info, System>,
-}
-
-pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
-  let accs = ctx.accounts;
-  let instance = &mut accs.instance;
-  
-  instance.bump = *ctx.bumps.get("instance").unwrap();
-  instance.collection_mint = accs.collection_mint.key();
-  instance.collection_meta = accs.collection_meta.key();
-
-  Ok(())
+impl Message<'_> {
+  pub const SEED_PREFIX: &'static [u8; 7] = b"message";
 }
 
 #[derive(Accounts)]
 pub struct BurnAndSend<'info> {
   #[account(
     mut,
-    //This is the only check we have to do ourselves to ensure that the submitted NFT actually
-    // belongs to the collection that our instance is associated with and hence that one can only
-    // burn NFTs that are actually certified parts of that collection.
+    constraint = !instance.is_paused,
+    //This is the only account check we have to do ourselves to ensure that the submitted NFT
+    // actually belongs to the collection that our instance is associated with and hence that
+    // one can only burn NFTs that are actually certified parts of that collection.
     //
     //The metaplex metadata program will take care of all other checks, namely that:
     // * The NFT token is actually associated with the mint.
@@ -119,7 +72,7 @@ pub struct BurnAndSend<'info> {
 
   #[account(
     mut,
-    seeds = [SEED_PREFIX_MESSAGE, &nft_mint.key().to_bytes()],
+    seeds = [Message::SEED_PREFIX, &nft_mint.key().to_bytes()],
     bump,
   )]
   /// CHECK: initialized and written to by wormhole core bridge
@@ -166,7 +119,12 @@ pub fn burn_and_send(
     uri[start..end].parse().unwrap()
   };
 
-  // 2. burn the nft
+  // 2. if whitelisting is enabled, check if the NFT has been whitelisted
+  if accs.instance.whitelist_enabled() && !accs.instance.is_whitelisted(token_id) {
+    return Err(DustBridgingError::NotYetWhitelisted.into());
+  }
+
+  // 3. burn the NFT
   burn_nft(
     CpiContext::new(
       accs.metadata_program.to_account_info(),
@@ -182,7 +140,7 @@ pub fn burn_and_send(
     )
   )?;
 
-  // 3. transfer Wormhole fee to fee collector account
+  // 4. if necessary, transfer Wormhole fee to fee collector account
   if accs.wormhole_bridge.fee() > 0 {
     anchor_lang::system_program::transfer(
       CpiContext::new(
@@ -196,7 +154,7 @@ pub fn burn_and_send(
     )?;
   }
   
-  // 4. emit the token id and intended evm recipient via wormhole
+  // 5. emit the token id and intended evm recipient via wormhole
   let message_bump = ctx.bumps.get("wormhole_message").unwrap();
 
   wormhole::post_message(
@@ -219,7 +177,7 @@ pub fn burn_and_send(
           &accs.instance.collection_mint.key().to_bytes(),
           &[accs.instance.bump]
         ],
-        &[SEED_PREFIX_MESSAGE, &accs.nft_mint.key().to_bytes(), &[*message_bump]],
+        &[Message::SEED_PREFIX, &accs.nft_mint.key().to_bytes(), &[*message_bump]],
       ],
     ),
     batch_id,
@@ -227,7 +185,7 @@ pub fn burn_and_send(
     wormhole::Finality::Finalized,
   )?;
 
-  // 5. log info to allow easy recovery of all involved accounts
+  // 6. log info to allow easy recovery of all involved accounts
   let wormhole_sequence =
     wormhole::SequenceTracker::try_from_slice(*accs.wormhole_sequence.data.borrow())
     .unwrap().value();
@@ -237,4 +195,3 @@ pub fn burn_and_send(
 
   Ok(())
 }
-
