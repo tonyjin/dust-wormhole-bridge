@@ -6,6 +6,7 @@ use anchor_lang::prelude::*;
 pub mod instructions;
 pub mod instance;
 pub mod error;
+pub mod anchor_metadata;
 
 use instructions::*;
 

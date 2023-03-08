@@ -4,11 +4,12 @@ import {
   PublicKey,
   TransactionInstruction,
   SystemProgram,
+  SYSVAR_INSTRUCTIONS_PUBKEY,
 } from "@solana/web3.js";
 import {TOKEN_PROGRAM_ID} from "@solana/spl-token";
 import {Program} from "@project-serum/anchor";
 import {Metaplex, NftWithToken} from "@metaplex-foundation/js";
-import {PROGRAM_ID as METADATA_ID} from "@metaplex-foundation/mpl-token-metadata";
+import {PROGRAM_ID as METADATA_ID, TokenStandard} from "@metaplex-foundation/mpl-token-metadata";
 import {getPostMessageCpiAccounts} from "@certusone/wormhole-sdk/lib/cjs/solana";
 import {CONTRACTS} from "@certusone/wormhole-sdk";
 import {ethers} from "ethers";
@@ -216,6 +217,15 @@ export class DustBridging {
     }
     
     const evmRecipientArrayified = ethers.utils.zeroPad(evmRecipient, 20);
+    //For normal NFTs, we can pass in an arbitrary mutable account for the token record account
+    //  since it will be ignored by the DustBridging program anyway and it will substitute it with
+    //  the metadata program id which is the canonical solution according to the documentation - see
+    //  https://github.com/metaplex-foundation/metaplex-program-library/blob/master/token-metadata/program/ProgrammableNFTGuide.md#%EF%B8%8F--positional-optional-accounts
+    //So for our purposes we simply reuse the nftToken account.
+    const tokenRecord = 
+      nft.tokenStandard === TokenStandard.ProgrammableNonFungible
+      ? this.metaplex.nfts().pdas().tokenRecord({mint: nft.mint.address, token: nftToken})
+      : nftToken; //will be ignored, but must be writeable because of Anchor checks
 
     return this.program.methods.burnAndSend(batchId, evmRecipientArrayified).accounts({
       instance: instance.address,
@@ -224,11 +234,13 @@ export class DustBridging {
       nftToken,
       nftMint: nft.mint.address,
       nftMeta: nft.metadataAddress,
-      nftMasteredition: nft.edition.address,
+      nftMasterEdition: nft.edition.address,
       collectionMeta: this.metaplex.nfts().pdas().metadata({mint: this.collectionMint}),
+      tokenRecord,
       wormholeMessage: DustBridging.messageAccountAddress(nft.mint.address),
       metadataProgram: METADATA_ID,
       tokenProgram: TOKEN_PROGRAM_ID,
+      sysvarInstructions: SYSVAR_INSTRUCTIONS_PUBKEY,
       ...this.wormholeCpiAccounts(instance.address),
     }).instruction();
   }

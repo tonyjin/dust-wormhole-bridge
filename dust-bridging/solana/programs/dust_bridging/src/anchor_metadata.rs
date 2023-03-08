@@ -1,12 +1,23 @@
 use anchor_lang::prelude::*;
-use mpl_token_metadata::state::{Metadata as MplMetadata, TokenMetadataAccount};
-use crate::metadata::program::ID;
+use mpl_token_metadata::{
+  ID as METADATA_ID,
+  state::{PREFIX, Metadata as MplMetadata, TokenMetadataAccount}
+};
+
+#[derive(Debug, Clone)]
+pub struct Program;
+
+impl Id for Program {
+  fn id() -> Pubkey {
+    METADATA_ID
+  }
+}
 
 #[derive(Clone)]
 pub struct Metadata(MplMetadata);
 
 impl Metadata {
-  pub const SEED_PREFIX: &'static [u8; 8] = b"metadata";
+  pub const SEED_PREFIX: &'static [u8] = PREFIX.as_bytes();
   pub const LEN: usize = mpl_token_metadata::state::MAX_METADATA_LEN;
 }
 
@@ -29,7 +40,7 @@ impl AccountSerialize for Metadata {}
 
 impl Owner for Metadata {
   fn owner() -> Pubkey {
-    ID
+    METADATA_ID
   }
 }
 

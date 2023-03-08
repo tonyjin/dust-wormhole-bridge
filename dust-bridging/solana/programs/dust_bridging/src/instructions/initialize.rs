@@ -1,16 +1,15 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::Mint;
-use metaplex_anchor_sdk::{
-  metadata::{
-    program::ID as METADATA_ID,
-    accounts::Metadata,
-  },
-};
+use crate::anchor_metadata::Metadata;
+use mpl_token_metadata::ID as METADATA_ID;
+// use metaplex_anchor_sdk::{
+//   metadata::{
+//     program::ID as METADATA_ID,
+//     accounts::Metadata,
+//   },
+// };
 
 use crate::instance::Instance;
-
-//anchor_spl does not provide these definitions itself...
-pub const SEED_PREFIX_METADATA: &[u8; 8] = b"metadata";
 
 const fn whitelist_bytes(collection_size: u16) -> usize {
   (collection_size/8 + if (collection_size % 8) > 0 {1} else {0}) as usize
@@ -39,7 +38,7 @@ pub struct Initialize<'info> {
 
   #[account(
     //metaplex unnecessarily includes the program id of the metadata program in its PDA seeds...
-    seeds = [SEED_PREFIX_METADATA, &METADATA_ID.to_bytes(), &collection_mint.key().to_bytes()],
+    seeds = [Metadata::SEED_PREFIX, &METADATA_ID.to_bytes(), &collection_mint.key().to_bytes()],
     bump,
     seeds::program = METADATA_ID,
     has_one = update_authority,

@@ -79,7 +79,7 @@ describe("Dust NFT bridging", function() {
 
   allHighlevelCombinations.forEach(({tokenStandardName, useWhitelist}) =>
   describe("NFT with token standard " + tokenStandardName +
-      + " with" + (useWhitelist ? "" : "out") + " using a whitelist", function() {
+      " with" + (useWhitelist ? "" : "out") + " using a whitelist", function() {
     const collectionMintPair = Keypair.generate();
     const collectionMint = collectionMintPair.publicKey;
     const dustBridging = new DustBridging(connection, collectionMint);
@@ -129,7 +129,7 @@ describe("Dust NFT bridging", function() {
       it("as admin", initialize(admin));
     });
 
-    if (useWhitelist)
+    if (useWhitelist) {
       describe("bulk whitelisting (takes a while)", function() {
         it("test and reset", async function() {
           const tokenIdsToWhitelist = [0, 1, 8, whitelistSize-9, whitelistSize-2, whitelistSize-1];
@@ -164,8 +164,7 @@ describe("Dust NFT bridging", function() {
             expect(await dustBridging.isNftWhitelisted(tokenId)).to.equal(false);
         })
       });
-    
-    if (useWhitelist)
+
       describe("delegation", function() {
         const setDelegate = async (newDelegate: PublicKey | null) => sendAndConfirmTransaction(
           connection,
@@ -218,6 +217,7 @@ describe("Dust NFT bridging", function() {
           await expect(delegateWhitelist(0)).to.be.rejected;
         });
       });
+    }
 
     describe("BurnAndSend Ix", function() {
       let createdNftOutput: CreateNftOutput;

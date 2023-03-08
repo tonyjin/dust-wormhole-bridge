@@ -1,16 +1,16 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::Token;
 use wormhole_anchor_sdk::wormhole;
-use metaplex_anchor_sdk::{
-  metadata,
-  metadata::{
-    accounts::Metadata,
-    instructions::{burn_nft, BurnNft},
-  },
+use mpl_token_metadata::{
+  state::TokenStandard,
+  instruction::{BurnArgs, InstructionBuilder, builders::BurnBuilder}
 };
 
-use crate::instance::Instance;
-use crate::error::DustBridgingError;
+use crate::{
+  instance::Instance,
+  anchor_metadata::{self, Metadata},
+  error::DustBridgingError,
+};
 
 pub type EvmAddress = [u8; 20];
 
@@ -64,11 +64,19 @@ pub struct BurnAndSend<'info> {
 
   #[account(mut)]
   /// CHECK: account will be checked by the metaplex metadata program
-  pub nft_masteredition: UncheckedAccount<'info>,
+  pub nft_master_edition: UncheckedAccount<'info>,
 
   #[account(mut)]
   /// CHECK: account will be checked by the metaplex metadata program
   pub collection_meta: UncheckedAccount<'info>,
+
+  #[account(mut)]
+  /// CHECK: account will be checked by the metaplex metadata program
+  /// This account must be set to the actual token record account for pNFTs.
+  /// For normal NFTs it must be set to the same account as the nft_token account.
+  /// Metaplex uses the metaplex program id for positional optional accounts, however we can't do
+  ///   that because the token record account must be mut and the metaplex program can't be.
+  pub token_record: UncheckedAccount<'info>,
 
   #[account(
     mut,
@@ -91,9 +99,13 @@ pub struct BurnAndSend<'info> {
   pub wormhole_sequence: UncheckedAccount<'info>,
 
   pub wormhole_program: Program<'info, wormhole::program::Wormhole>,
-  pub metadata_program: Program<'info, metadata::program::Metadata>,
+  pub metadata_program: Program<'info, anchor_metadata::Program>,
   pub token_program: Program<'info, Token>,
   pub system_program: Program<'info, System>,
+
+  //not supported as a special Sysvar account by Anchor hence just an unchecked account
+  /// CHECK: account will be checked by the metaplex metadata program
+  pub sysvar_instructions: UncheckedAccount<'info>, 
   
   //Wormhole was written before these could be requested from the runtime and so it's sadly
   // tech debt that's leaking out to us now (no way to request account infos)
@@ -125,20 +137,50 @@ pub fn burn_and_send(
   }
 
   // 3. burn the NFT
-  burn_nft(
-    CpiContext::new(
-      accs.metadata_program.to_account_info(),
-      BurnNft {
-        metadata: accs.nft_meta.to_account_info(),
-        owner: accs.nft_owner.to_account_info(),
-        mint: accs.nft_mint.to_account_info(),
-        token: accs.nft_token.to_account_info(),
-        master_edition: accs.nft_masteredition.to_account_info(),
-        token_program: accs.token_program.to_account_info(),
-        collection_metadata: accs.collection_meta.to_account_info(),
+  {
+    let mut builder = BurnBuilder::new();
+    builder
+      .authority(*accs.nft_owner.key)
+      .collection_metadata(*accs.collection_meta.key)
+      .metadata(*accs.nft_meta.to_account_info().key)
+      .edition(*accs.nft_master_edition.key)
+      .mint(*accs.nft_mint.key)
+      .token(*accs.nft_token.key);
+    
+    //only set the token_record account if we are dealing with a pNFT, otherwise use the metaplex
+    //  program id which is the canonical solution for positional optional accounts according to the
+    //  docs: https://github.com/metaplex-foundation/metaplex-program-library/blob/master/token-metadata/program/ProgrammableNFTGuide.md#%EF%B8%8F--positional-optional-accounts
+    let token_record = match accs.nft_meta.token_standard {
+      Some(TokenStandard::ProgrammableNonFungible) => {
+        builder.token_record(*accs.token_record.key);
+        accs.token_record.to_account_info()
       },
-    )
-  )?;
+      _ => {
+        accs.metadata_program.to_account_info()
+      },
+    };
+
+    anchor_lang::solana_program::program::invoke(
+      &builder.build(BurnArgs::V1{amount: 1}).unwrap().instruction(),
+      &[
+        accs.nft_owner.to_account_info(),
+        accs.collection_meta.to_account_info(),
+        accs.nft_meta.to_account_info(),
+        accs.nft_master_edition.to_account_info(),
+        accs.nft_mint.to_account_info(),
+        accs.nft_token.to_account_info(),
+        token_record,
+        accs.metadata_program.to_account_info(), //ignored
+        accs.metadata_program.to_account_info(), //ignored
+        accs.metadata_program.to_account_info(), //ignored
+        accs.metadata_program.to_account_info(), //ignored
+        accs.sysvar_instructions.to_account_info(),
+        accs.token_program.to_account_info(),
+        accs.system_program.to_account_info(),
+        accs.metadata_program.to_account_info(),
+      ],
+    )?;
+  }
 
   // 4. if necessary, transfer Wormhole fee to fee collector account
   if accs.wormhole_bridge.fee() > 0 {
