@@ -1,5 +1,3 @@
-include testing.env
-
 .PHONY: all test unit-test integration-test build dependencies clean
 
 all: build

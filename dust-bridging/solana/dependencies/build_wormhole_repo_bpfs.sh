@@ -31,7 +31,6 @@ DOCKER_BUILDKIT=1 docker build \
 ### Move wormhole artifact
 cd ../..
 mv tmp-wormhole/solana/artifacts/bridge.so wormhole.so
-mv tmp-wormhole/solana/artifacts/token_bridge.so .
 rm -rf tmp-wormhole
 
 ### Done

@@ -19,7 +19,6 @@ test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 ts/tests/*.ts"
 address = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
 program = "./dependencies/mpl_token_metadata.so"
 
-### NOTE: Check against testing.env
 [[test.genesis]]
 address = "worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth"
 program = "./dependencies/wormhole.so"
