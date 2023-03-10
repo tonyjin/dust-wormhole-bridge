@@ -29,7 +29,10 @@ contract DustWormholeERC721Upgradeable is
   using BytesLib for bytes;
   using SafeERC20 for IERC20;
 
-  //immutable members are set in the constructor of the logic contract
+  // Wormhole chain id that valid vaas must have -- must be Solana.
+  uint16 constant SOURCE_CHAIN_ID = 1;
+
+  // -- immutable members (baked into the code by the constructor of the logic contract)
   
   // Core layer Wormhole contract.
   IWormhole immutable _wormhole;
@@ -40,9 +43,6 @@ contract DustWormholeERC721Upgradeable is
   // Common URI for all NFTs handled by this contract.
   bytes32   immutable _baseUri;
   uint8     immutable _baseUriLength;
-  // Wormhole chain id that valid vaas must have.
-  // We only support Solana for now.
-  uint16 constant SOURCE_CHAIN_ID = 1;
 
   // Amount of DUST to transfer to the minter on upon relayed mint.
   uint256 _dustAmountOnMint;
@@ -60,9 +60,7 @@ contract DustWormholeERC721Upgradeable is
   error BaseUriTooLong();
   error InvalidMsgValue();
 
-  //This is the constructor for the logic contract - it sets all immutable members (i.e. bakes
-  //  them directly into the deployed bytecode). The logic contract will be used via delegateCall
-  //  by the ERC1967 proxy contract.
+  //constructor for the logic(!) contract
   constructor(
     IWormhole wormhole,
     IERC20 dustToken,
@@ -83,30 +81,22 @@ contract DustWormholeERC721Upgradeable is
     _baseUriLength = uint8(baseUri.length);
 
     //brick logic contract
-    initialize("","",0,0);
+    //initialize("","",0,0);
+    initialize("","",0,0,address(1),0);
     renounceOwnership();
   }
 
   //intentionally empty (we only want the onlyOwner modifier "side-effect")
   function _authorizeUpgrade(address) internal override onlyOwner {}
 
-  function tokenURI(uint256 tokenId) public view override returns (string memory) {
-    return string.concat(super.tokenURI(tokenId), ".json");
-  }
-
-  function _baseURI() internal view override returns (string memory baseUri) {
-    baseUri = new string(_baseUriLength);
-    bytes32 tmp = _baseUri;
-    assembly ("memory-safe") {
-      mstore(add(baseUri, 32), tmp)
-    }
-  }
-
+  //"constructor" of the proxy contract
   function initialize(
     string memory name,
     string memory symbol,
     uint256 dustAmountOnMint,
-    uint256 gasTokenAmountOnMint
+    uint256 gasTokenAmountOnMint,
+    address royaltyReceiver,
+    uint96 royaltyFeeNumerator
   ) public initializer {
     _dustAmountOnMint = dustAmountOnMint;
     _gasTokenAmountOnMint = gasTokenAmountOnMint;
@@ -115,6 +105,8 @@ contract DustWormholeERC721Upgradeable is
     __ERC2981_init();
     __Ownable_init();
     __DefaultOperatorFilterer_init();
+
+    _setDefaultRoyalty(royaltyReceiver, royaltyFeeNumerator);
   }
 
   function updateAmountsOnMint(
@@ -128,50 +120,6 @@ contract DustWormholeERC721Upgradeable is
   function getAmountsOnMint() external view returns (uint256 dustAmountOnMint, uint256 gasTokenAmountOnMint) {
     dustAmountOnMint = _dustAmountOnMint;
     gasTokenAmountOnMint = _gasTokenAmountOnMint;
-  }
-
-  function setApprovalForAll(
-    address operator,
-    bool approved
-  ) public override onlyAllowedOperatorApproval(operator) {
-    super.setApprovalForAll(operator, approved);
-  }
-
-  function approve(
-    address operator,
-    uint256 tokenId
-  ) public override onlyAllowedOperatorApproval(operator) {
-    super.approve(operator, tokenId);
-  }
-
-  function transferFrom(
-    address from,
-    address to,
-    uint256 tokenId
-  ) public override onlyAllowedOperator(from) {
-    super.transferFrom(from, to, tokenId);
-  }
-
-  function safeTransferFrom(
-    address from,
-    address to,
-    uint256 tokenId
-  ) public override onlyAllowedOperator(from) {
-    super.safeTransferFrom(from, to, tokenId);
-  }
-
-  function safeTransferFrom(
-    address from,
-    address to,
-    uint256 tokenId,
-    bytes memory data
-  ) public override onlyAllowedOperator(from) {
-    super.safeTransferFrom(from, to, tokenId, data);
-  }
-
-  function supportsInterface(bytes4 interfaceId)
-    public view override(ERC721Upgradeable, ERC2981Upgradeable) returns (bool) {
-    return super.supportsInterface(interfaceId);
   }
 
   /**
@@ -219,5 +167,87 @@ contract DustWormholeERC721Upgradeable is
 
     tokenId = message.toUint16(0);
     evmRecipient = message.toAddress(BytesLib.uint16Size);
+  }
+
+  // ---- ERC2981 ----
+
+  function setDefaultRoyalty(address receiver, uint96 feeNumerator) external onlyOwner {
+    _setDefaultRoyalty(receiver, feeNumerator);
+  }
+
+  function deleteDefaultRoyalty() external onlyOwner {
+    _deleteDefaultRoyalty();
+  }
+
+  function setTokenRoyalty(
+    uint256 tokenId,
+    address receiver,
+    uint96 feeNumerator
+  ) external onlyOwner {
+    _setTokenRoyalty(tokenId, receiver, feeNumerator);
+  }
+
+  function resetTokenRoyalty(uint256 tokenId) external onlyOwner {
+    _resetTokenRoyalty(tokenId);
+  }
+
+  // ---- ERC721 ----
+
+  function tokenURI(uint256 tokenId) public view override returns (string memory) {
+    return string.concat(super.tokenURI(tokenId), ".json");
+  }
+
+  function _baseURI() internal view override returns (string memory baseUri) {
+    baseUri = new string(_baseUriLength);
+    bytes32 tmp = _baseUri;
+    assembly ("memory-safe") {
+      mstore(add(baseUri, 32), tmp)
+    }
+  }
+
+  function setApprovalForAll(
+    address operator,
+    bool approved
+  ) public override onlyAllowedOperatorApproval(operator) {
+    super.setApprovalForAll(operator, approved);
+  }
+
+  function approve(
+    address operator,
+    uint256 tokenId
+  ) public override onlyAllowedOperatorApproval(operator) {
+    super.approve(operator, tokenId);
+  }
+
+  function transferFrom(
+    address from,
+    address to,
+    uint256 tokenId
+  ) public override onlyAllowedOperator(from) {
+    super.transferFrom(from, to, tokenId);
+  }
+
+  function safeTransferFrom(
+    address from,
+    address to,
+    uint256 tokenId
+  ) public override onlyAllowedOperator(from) {
+    super.safeTransferFrom(from, to, tokenId);
+  }
+
+  function safeTransferFrom(
+    address from,
+    address to,
+    uint256 tokenId,
+    bytes memory data
+  ) public override onlyAllowedOperator(from) {
+    super.safeTransferFrom(from, to, tokenId, data);
+  }
+
+  // ---- ERC165 ----
+
+  function supportsInterface(bytes4 interfaceId)
+    public view override(ERC721Upgradeable, ERC2981Upgradeable) returns (bool) {
+    return super.supportsInterface(interfaceId);
   }
 }

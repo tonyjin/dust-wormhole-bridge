@@ -20,16 +20,18 @@ contract TestCoreRelayer is Test {
   using BytesLib for bytes;
 
   // Ethereum has wormhole chain id 2
-  uint16 constant wormholeChainId = 2;
+  uint16  constant wormholeChainId = 2;
   // Solana has wormhole chain id 1
-  uint16 constant sourceChainId = 1;
+  uint16  constant sourceChainId = 1;
   bytes32 constant minterAddress = bytes32("minter address") >> 12 * 8;
   bytes32 constant userAddress = bytes32("user address") >> 12 * 8;
   uint256 constant dustAmountOnMint = 1 ether;
-  uint256 constant gasTokenAmountOnMint = 0.1 ether;
-  bytes constant baseUri = "testing base uri";
-  string constant name = "testing token name";
-  string constant symbol = "testing token symbol";
+  uint256 constant gasTokenAmountOnMint = 0;//0.1 ether;
+  address constant royaltyReceiver = address(0x1234);
+  uint96  constant royaltyFeeNumerator = 333;
+  bytes   constant baseUri = "https://base.uri.test/";
+  string  constant name = "testing token name";
+  string  constant symbol = "testing token symbol";
 
   IWormhole wormhole;
   WormholeSimulator wormholeSimulator;
@@ -58,7 +60,8 @@ contract TestCoreRelayer is Test {
       address(nftImplementation),
       abi.encodeCall(
         nftImplementation.initialize,
-        (name, symbol, dustAmountOnMint, gasTokenAmountOnMint)
+        (name, symbol, dustAmountOnMint, gasTokenAmountOnMint, royaltyReceiver, royaltyFeeNumerator)
+        //(name, symbol, dustAmountOnMint, gasTokenAmountOnMint)
       )
     );
     nft = DustWormholeERC721Upgradeable(address(proxy));
