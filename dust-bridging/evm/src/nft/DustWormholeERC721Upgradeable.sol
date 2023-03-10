@@ -228,6 +228,11 @@ contract DustWormholeERC721Upgradeable is
     _gasTokenAmountOnMint = gasTokenAmountOnMint;
   }
 
+  function getAmountsOnMint() external view returns (uint256 dustAmountOnMint, uint256 gasTokenAmountOnMint) {
+    dustAmountOnMint = _dustAmountOnMint;
+    gasTokenAmountOnMint = _gasTokenAmountOnMint;
+  }
+
   function setApprovalForAll(
     address operator,
     bool approved

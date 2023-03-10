@@ -11,6 +11,8 @@ import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
+import {MockDust} from "./MockDust.sol";
+
 import "forge-std/Test.sol";
 import "forge-std/console2.sol";
 
@@ -32,6 +34,7 @@ contract TestCoreRelayer is Test {
   IWormhole wormhole;
   WormholeSimulator wormholeSimulator;
   DustWormholeERC721Upgradeable nft;
+  IERC20 dustToken;
 
   function setUp() public {
     // deploy Wormhole
@@ -46,11 +49,11 @@ contract TestCoreRelayer is Test {
     );
     wormholeSimulator.setMessageFee(100);
 
-    IERC20 dustTokenContract = IERC20(address(0)); //TODO deploy DUST contract
+    dustToken = new MockDust(dustAmountOnMint * 10);
 
     //Deploy our contract for testing
     DustWormholeERC721Upgradeable nftImplementation =
-      new DustWormholeERC721Upgradeable(wormhole, dustTokenContract, minterAddress, baseUri);
+      new DustWormholeERC721Upgradeable(wormhole, dustToken, minterAddress, baseUri);
     ERC1967Proxy proxy = new ERC1967Proxy(
       address(nftImplementation),
       abi.encodeCall(
@@ -95,9 +98,12 @@ contract TestCoreRelayer is Test {
     // TODO: write this as a unit test, i.e. independently from mint mechanism
     uint16 tokenId = 5;
     bytes memory mintVaa = craftValidVaa(tokenId, fromWormholeFormat(userAddress));
-    // TODO: approve nft contract for transfering DUST from relayer
-    // TODO: send gasTokenAmountToMint along with receiveAndMint call
-    nft.receiveAndMint(mintVaa);
+
+    (uint256 dustAmount, uint256 gasTokenAmount) = nft.getAmountsOnMint();
+    dustToken.approve(address(nft), dustAmount);
+    vm.deal(address(this), gasTokenAmount);
+    nft.receiveAndMint{value: gasTokenAmount}(mintVaa);
+
     string memory uri = nft.tokenURI(tokenId);
     assertEq(bytes(uri), bytes(abi.encodePacked(baseUri, Strings.toString(tokenId), string(".json"))));
   }
