@@ -56,6 +56,7 @@ contract DustWormholeERC721Upgradeable is
   error FailedVaaParseAndVerification(string reason);
   error VaaAlreadyClaimed();
   error InvalidMessageLength();
+  error BaseUriEmpty();
   error BaseUriTooLong();
   error InvalidMsgValue();
 
@@ -68,6 +69,9 @@ contract DustWormholeERC721Upgradeable is
     bytes32 minterAddress,
     bytes memory baseUri
   ) {
+    if (baseUri.length == 0) {
+      revert BaseUriEmpty();
+    }
     if (baseUri.length > 32) {
       revert BaseUriTooLong();
     }
