@@ -53,6 +53,13 @@ export class DustBridging {
       throw Error("Collection mint can't be zero address");
   }
 
+  getInstanceAddress(): PublicKey {
+    return PublicKey.findProgramAddressSync(
+      [SEED_PREFIX_INSTANCE, this.collectionMint.toBuffer()],
+      DustBridging.programId,
+    )[0];
+  }
+
   async isInitialized(): Promise<boolean> {
     const instance = await this.getInstance(false);
     return instance.isInitialized;
@@ -284,10 +291,7 @@ export class DustBridging {
   }
 
   private async getInstance(mustBeInitialized = true) {
-    const address = PublicKey.findProgramAddressSync(
-      [SEED_PREFIX_INSTANCE, this.collectionMint.toBuffer()],
-      DustBridging.programId
-    )[0];
+    const address = this.getInstanceAddress();
     const data = await this.program.account.instance.fetchNullable(address);
     const isInitialized = !!data && data.collectionMint.equals(this.collectionMint);
     if (mustBeInitialized && !isInitialized)
