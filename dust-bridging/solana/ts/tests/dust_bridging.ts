@@ -337,7 +337,7 @@ describe("Dust NFT bridging", function() {
           connection, DustBridging.messageAccountAddress(userNft.mintAddress)
         )).message;
 
-        expect(payload.readUint16LE(0)).to.equal(tokenId);
+        expect(payload.readUint16BE(0)).to.equal(tokenId);
         expect(Buffer.compare(
           payload.subarray(2),
           Buffer.from(evmRecipient.substring(2), "hex")
