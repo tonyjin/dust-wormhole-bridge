@@ -16,7 +16,7 @@ pub type EvmAddress = [u8; 20];
 
 #[derive(AnchorSerialize)]
 struct Message<'a> {
-  token_id: u16,
+  token_id: [u8;2],
   evm_recipient: &'a EvmAddress,
 }
 
@@ -223,17 +223,31 @@ pub fn burn_and_send(
       ],
     ),
     batch_id,
-    Message { token_id, evm_recipient }.try_to_vec()?, //.unwrap(),
+    Message { token_id: token_id.to_be_bytes(), evm_recipient }.try_to_vec()?, //.unwrap(),
     wormhole::Finality::Finalized,
   )?;
 
-  // 6. log info to allow easy recovery of all involved accounts
-  let wormhole_sequence =
-    wormhole::SequenceTracker::try_from_slice(*accs.wormhole_sequence.data.borrow())
-    .unwrap().value();
-  msg!("nft mint: {}", accs.nft_mint.key());
+  // 6. log token id
   msg!("token id: {}", token_id);
-  msg!("wormhole sequence: {}", wormhole_sequence);
 
   Ok(())
+}
+
+#[cfg(test)]
+pub mod test {
+  use super::*;
+
+  #[test]
+  fn test_message_byteorder() -> Result<()> {
+    let token_id = 1u16;
+    let evm_recipient: &EvmAddress = &[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19];
+    let serialialized = Message { token_id: token_id.to_be_bytes(), evm_recipient }.try_to_vec().unwrap();
+    assert_eq!(serialialized.len(), 2+20);
+    assert_eq!(serialialized[0], 0u8);
+    assert_eq!(serialialized[1], 1u8);
+    for i in 0..20 {
+      assert_eq!(serialialized[2+i], i as u8);
+    }
+    Ok(())
+  }
 }
