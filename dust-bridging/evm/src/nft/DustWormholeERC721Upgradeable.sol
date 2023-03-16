@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
+import {IERC721Upgradeable, ERC721Upgradeable, ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
 import {ERC2981Upgradeable} from "@openzeppelin/contracts-upgradeable/token/common/ERC2981Upgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {DefaultOperatorFiltererUpgradeable} from "./DefaultOperatorFiltererUpgradeable.sol";
@@ -21,7 +21,7 @@ import {BytesLib} from "wormhole-solidity/BytesLib.sol";
  */
 contract DustWormholeERC721Upgradeable is
   UUPSUpgradeable,
-  ERC721Upgradeable,
+  ERC721EnumerableUpgradeable,
   ERC2981Upgradeable,
   DefaultOperatorFiltererUpgradeable,
   OwnableUpgradeable
@@ -208,14 +208,14 @@ contract DustWormholeERC721Upgradeable is
   function setApprovalForAll(
     address operator,
     bool approved
-  ) public override onlyAllowedOperatorApproval(operator) {
+  ) public override(ERC721Upgradeable, IERC721Upgradeable) onlyAllowedOperatorApproval(operator) {
     super.setApprovalForAll(operator, approved);
   }
 
   function approve(
     address operator,
     uint256 tokenId
-  ) public override onlyAllowedOperatorApproval(operator) {
+  ) public override(ERC721Upgradeable, IERC721Upgradeable) onlyAllowedOperatorApproval(operator) {
     super.approve(operator, tokenId);
   }
 
@@ -223,7 +223,7 @@ contract DustWormholeERC721Upgradeable is
     address from,
     address to,
     uint256 tokenId
-  ) public override onlyAllowedOperator(from) {
+  ) public override(ERC721Upgradeable, IERC721Upgradeable) onlyAllowedOperator(from) {
     super.transferFrom(from, to, tokenId);
   }
 
@@ -231,7 +231,7 @@ contract DustWormholeERC721Upgradeable is
     address from,
     address to,
     uint256 tokenId
-  ) public override onlyAllowedOperator(from) {
+  ) public override(ERC721Upgradeable, IERC721Upgradeable) onlyAllowedOperator(from) {
     super.safeTransferFrom(from, to, tokenId);
   }
 
@@ -240,14 +240,14 @@ contract DustWormholeERC721Upgradeable is
     address to,
     uint256 tokenId,
     bytes memory data
-  ) public override onlyAllowedOperator(from) {
+  ) public override(ERC721Upgradeable, IERC721Upgradeable) onlyAllowedOperator(from) {
     super.safeTransferFrom(from, to, tokenId, data);
   }
 
   // ---- ERC165 ----
 
   function supportsInterface(bytes4 interfaceId)
-    public view override(ERC721Upgradeable, ERC2981Upgradeable) returns (bool) {
+    public view override(ERC721EnumerableUpgradeable, ERC2981Upgradeable) returns (bool) {
     return super.supportsInterface(interfaceId);
   }
 }
