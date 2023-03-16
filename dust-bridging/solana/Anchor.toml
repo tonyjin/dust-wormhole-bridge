@@ -3,14 +3,14 @@ seeds = false
 skip-lint = false
 
 [programs.localnet]
-dust_bridging = "DxPDCoSdg5DWqE89uKh6qpsergPX8nd7DLH5EmyWY5uq"
+dust_bridging = "HhX1RVWgGTLrRSiEiXnu4kToHZhFLpqi5qkErkfFnqEQ"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
-wallet = "~/.config/solana/id.json"
+cluster = "devnet"
+wallet = "./wallet/devnet.json"
 
 [scripts]
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 ts/tests/*.ts"
@@ -20,5 +20,5 @@ address = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
 program = "./dependencies/mpl_token_metadata.so"
 
 [[test.genesis]]
-address = "worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth"
+address = "3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5"
 program = "./dependencies/wormhole.so"

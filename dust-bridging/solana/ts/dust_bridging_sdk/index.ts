@@ -17,8 +17,8 @@ import {ethers} from "ethers";
 import {DustBridging as DustBridgingTypes} from "../../target/types/dust_bridging";
 import IDL from "../../target/idl/dust_bridging.json";
 
-const WORMHOLE_ID = new PublicKey(CONTRACTS.MAINNET.solana.core);
-const PROGRAM_ID = new PublicKey("DxPDCoSdg5DWqE89uKh6qpsergPX8nd7DLH5EmyWY5uq");
+const WORMHOLE_ID = new PublicKey(CONTRACTS.TESTNET.solana.core);
+const PROGRAM_ID = new PublicKey("HhX1RVWgGTLrRSiEiXnu4kToHZhFLpqi5qkErkfFnqEQ");
 
 const SEED_PREFIX_INSTANCE = Buffer.from("instance", "utf-8");
 const SEED_PREFIX_MESSAGE = Buffer.from("message", "utf-8");
@@ -233,7 +233,6 @@ export class DustBridging {
       nft.tokenStandard === TokenStandard.ProgrammableNonFungible
       ? this.metaplex.nfts().pdas().tokenRecord({mint: nft.mint.address, token: nftToken})
       : nftToken; //will be ignored, but must be writeable because of Anchor checks
-
     return this.program.methods.burnAndSend(batchId, evmRecipientArrayified).accounts({
       instance: instance.address,
       payer,

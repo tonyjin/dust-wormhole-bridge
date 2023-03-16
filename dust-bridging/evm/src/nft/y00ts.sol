@@ -12,14 +12,14 @@ import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {BytesLib} from "wormhole-solidity/BytesLib.sol";
 
 /**
- * @title  DustWormholeERC721Upgradeable
+ * @title  y00ts
  * @notice ERC721 that mints tokens based on VAAs.
  *         This contract is configured to use the DefaultOperatorFilterer, which automatically
  *         registers the token and subscribes it to OpenSea's curated filters.
  *         Adding the onlyAllowedOperator modifier to the transferFrom and both safeTransferFrom
  *         methods ensures that the msg.sender (operator) is allowed by the OperatorFilterRegistry.
  */
-contract DustWormholeERC721Upgradeable is
+contract y00ts is
   UUPSUpgradeable,
   ERC721EnumerableUpgradeable,
   ERC2981Upgradeable,
@@ -59,6 +59,11 @@ contract DustWormholeERC721Upgradeable is
   error BaseUriEmpty();
   error BaseUriTooLong();
   error InvalidMsgValue();
+
+  event Minted(
+    uint256 indexed tokenId,
+    address receiver
+  );
 
   //constructor for the logic(!) contract
   constructor(
@@ -146,6 +151,7 @@ contract DustWormholeERC721Upgradeable is
 
     (uint256 tokenId, address evmRecipient) = parsePayload(vm.payload);
     _safeMint(evmRecipient, tokenId);
+    emit Minted(tokenId, evmRecipient);
     
     if (msg.sender != evmRecipient) {
       if (msg.value != _gasTokenAmountOnMint)

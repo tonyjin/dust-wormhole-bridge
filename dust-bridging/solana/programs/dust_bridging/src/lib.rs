@@ -10,7 +10,7 @@ pub mod anchor_metadata;
 
 use instructions::*;
 
-declare_id!("DxPDCoSdg5DWqE89uKh6qpsergPX8nd7DLH5EmyWY5uq");
+declare_id!("HhX1RVWgGTLrRSiEiXnu4kToHZhFLpqi5qkErkfFnqEQ");
 
 #[program]
 pub mod dust_bridging {
