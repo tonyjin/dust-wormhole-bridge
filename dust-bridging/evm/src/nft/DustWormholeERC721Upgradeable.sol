@@ -35,21 +35,21 @@ contract DustWormholeERC721Upgradeable is
   // -- immutable members (baked into the code by the constructor of the logic contract)
   
   // Core layer Wormhole contract.
-  IWormhole immutable _wormhole;
+  IWormhole private immutable _wormhole;
   // ERC20 DUST token contract.
-  IERC20    immutable _dustToken;
+  IERC20    private immutable _dustToken;
   // Contract address that can mint NFTs. The mint VAA should have this as the emitter address.
-  bytes32   immutable _minterAddress;
+  bytes32   private immutable _minterAddress;
   // Common URI for all NFTs handled by this contract.
-  bytes32   immutable _baseUri;
-  uint8     immutable _baseUriLength;
+  bytes32   private immutable _baseUri;
+  uint8     private immutable _baseUriLength;
 
   // Amount of DUST to transfer to the minter on upon relayed mint.
-  uint256 _dustAmountOnMint;
+  uint256 private _dustAmountOnMint;
   // Amount of gas token (ETH, MATIC, etc.) to transfer to the minter on upon relayed mint.
-  uint256 _gasTokenAmountOnMint;
+  uint256 private _gasTokenAmountOnMint;
   // Dictionary of VAA hash => flag that keeps track of claimed VAAs
-  mapping(bytes32 => bool) _claimedVaas;
+  mapping(bytes32 => bool) private _claimedVaas;
 
   error WrongEmitterChainId();
   error WrongEmitterAddress();
