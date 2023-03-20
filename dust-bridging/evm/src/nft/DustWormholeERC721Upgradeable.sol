@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity 0.8.19;
 
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -7,7 +7,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {IERC721Upgradeable, ERC721Upgradeable, ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
 import {ERC2981Upgradeable} from "@openzeppelin/contracts-upgradeable/token/common/ERC2981Upgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {DefaultOperatorFiltererUpgradeable} from "./DefaultOperatorFiltererUpgradeable.sol";
+import {DefaultOperatorFiltererUpgradeable} from "opensea/DefaultOperatorFiltererUpgradeable.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {BytesLib} from "wormhole-solidity/BytesLib.sol";
 
@@ -38,8 +38,8 @@ contract DustWormholeERC721Upgradeable is
   IWormhole private immutable _wormhole;
   // ERC20 DUST token contract.
   IERC20    private immutable _dustToken;
-  // Contract address that can mint NFTs. The mint VAA should have this as the emitter address.
-  bytes32   private immutable _minterAddress;
+  // Only VAAs from this emitter can mint NFTs with our contract (prevents spoofing).
+  bytes32   private immutable _emitterAddress;
   // Common URI for all NFTs handled by this contract.
   bytes32   private immutable _baseUri;
   uint8     private immutable _baseUriLength;
@@ -64,7 +64,7 @@ contract DustWormholeERC721Upgradeable is
   constructor(
     IWormhole wormhole,
     IERC20 dustToken,
-    bytes32 minterAddress,
+    bytes32 emitterAddress,
     bytes memory baseUri
   ) {
     if (baseUri.length == 0) {
@@ -76,7 +76,7 @@ contract DustWormholeERC721Upgradeable is
 
     _wormhole = wormhole;
     _dustToken = dustToken;
-    _minterAddress = minterAddress;
+    _emitterAddress = emitterAddress;
     _baseUri = bytes32(baseUri);
     _baseUriLength = uint8(baseUri.length);
 
@@ -126,7 +126,8 @@ contract DustWormholeERC721Upgradeable is
    * Mints an NFT based on an valid VAA and kickstarts the recipient's wallet with
    *   gas tokens (ETH or MATIC) and DUST (taken from msg.sender unless msg.sender is recipient).
    * TokenId and recipient address are taken from the VAA.
-   * The VAA must have been emitted by the minterAddress on Solana (chainId = 1).
+   * The Wormhole message must have been published by the DustBridging instance of the
+   *   NFT collection with the specified emitter on Solana (chainId = 1).
    */
   function receiveAndMint(bytes calldata vaa) external payable {
     (IWormhole.VM memory vm, bool valid, string memory reason) = _wormhole.parseAndVerifyVM(vaa);
@@ -136,7 +137,7 @@ contract DustWormholeERC721Upgradeable is
     if (vm.emitterChainId != SOURCE_CHAIN_ID)
       revert WrongEmitterChainId();
 
-    if (vm.emitterAddress != _minterAddress)
+    if (vm.emitterAddress != _emitterAddress)
       revert WrongEmitterAddress();
 
     if (_claimedVaas[vm.hash])
