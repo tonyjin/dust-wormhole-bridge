@@ -6,7 +6,7 @@ import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeE
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {IERC721Upgradeable, ERC721Upgradeable, ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
 import {ERC2981Upgradeable} from "@openzeppelin/contracts-upgradeable/token/common/ERC2981Upgradeable.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {DefaultOperatorFiltererUpgradeable} from "opensea/DefaultOperatorFiltererUpgradeable.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {BytesLib} from "wormhole-solidity/BytesLib.sol";
@@ -24,7 +24,7 @@ contract DustWormholeERC721Upgradeable is
   ERC721EnumerableUpgradeable,
   ERC2981Upgradeable,
   DefaultOperatorFiltererUpgradeable,
-  OwnableUpgradeable
+  Ownable2StepUpgradeable
 {
   using BytesLib for bytes;
   using SafeERC20 for IERC20;
