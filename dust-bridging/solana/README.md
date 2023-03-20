@@ -63,7 +63,6 @@ Deploying will require changing the program id of `DustBridging` to a keypair un
 
 * Both NFT collections currently use the current [Non-Fungible Standard](https://docs.metaplex.com/programs/token-metadata/token-standard#the-non-fungible-standard), however there is a new [Programmable Non-Fungible Standard](https://docs.metaplex.com/programs/token-metadata/token-standard#the-programmable-non-fungible-standard) in development, which has been introduced as a means to enforce payment of royalty fees to the NFT's creator upon NFT sales. Since Dust intends to convert both collections to the new pNFT standard within the given [upgrade window for existing assets](https://github.com/metaplex-foundation/mip/blob/main/mip-1.md#upgrade-window), DustBridging must use [the new, backwards compatible instructions of the Metaplex token metadata program](https://github.com/metaplex-foundation/metaplex-program-library/blob/ecb0dcd82274b8e70dacd171e1a553b6f6dab5c6/token-metadata/program/src/instruction/mod.rs#L502).
 * Neither collection ought to have any print editions.
-* DustBridging does not check for out of bounds whitelist access -- it's up to the admin to ensure that the collection size is set correctly during initialization and when whitelisting.
 
 # Building
 

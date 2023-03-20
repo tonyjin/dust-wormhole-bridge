@@ -132,7 +132,7 @@ pub fn burn_and_send(
   };
 
   // 2. if whitelisting is enabled, check if the NFT has been whitelisted
-  if accs.instance.whitelist_enabled() && !accs.instance.is_whitelisted(token_id) {
+  if accs.instance.whitelist_enabled() && !accs.instance.is_whitelisted(token_id)? {
     return Err(DustBridgingError::NotYetWhitelisted.into());
   }
 

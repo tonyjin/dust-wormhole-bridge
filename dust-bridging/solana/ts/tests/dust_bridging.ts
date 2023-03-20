@@ -191,6 +191,10 @@ describe("Dust NFT bridging", function() {
         expect(await dustBridging.isNftWhitelisted(tokenId)).to.equal(true);
       });
 
+      it("deletate whitelists out of bounds", async function() {
+        await expect(delegateWhitelist(whitelistSize)).to.be.rejected;
+      });
+
       it("admin revokes authorization", async function() {
         await expect(setDelegate(null)).to.be.fulfilled;
       });
