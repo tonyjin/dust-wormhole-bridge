@@ -1,8 +1,5 @@
 use anchor_lang::prelude::*;
 
-// TODO ensure that metaplex makes all the necessary checks:
-// * that all the remaining accounts are actually associated with each other in the right fashion
-
 pub mod instructions;
 pub mod instance;
 pub mod error;
