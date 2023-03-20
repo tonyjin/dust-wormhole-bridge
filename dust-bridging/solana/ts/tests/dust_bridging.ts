@@ -23,6 +23,7 @@ import {DustBridging} from "../dust_bridging_sdk";
 
 const LOCALHOST = "http://localhost:8899";
 const GUARDIAN_ADDRESS = "0xbefa429d57cd18b7f8a4d91a2da9ab4af05d0fbe";
+//we use mainnet despite testing on localnet because the wormhole module is compiled for mainnet
 const WORMHOLE_ID = new PublicKey(CONTRACTS.MAINNET.solana.core);
 
 const range = (size: number) => [...Array(size).keys()];
@@ -51,10 +52,16 @@ describe("Dust NFT bridging", function() {
       sellerFeeBasisPoints: 333,
       tokenStandard,
       //for NFTs with the "old", non-programmable standard, we also don't set isCollection
-      isCollection: false, //tokenStandard === TokenStandard.ProgrammableNonFungible,
+      isCollection: false,
     });
 
-    const dustBridging = new DustBridging(connection, collectionNft.mintAddress);
+    const dustBridging = new DustBridging(
+      connection,
+      collectionNft.mintAddress,
+       //force use of mainnet address despite testing on local cluster because module is configured
+       // with mainnet address regardless and hence deployed to that address by Anchor
+      {wormholeId: WORMHOLE_ID},
+    );
     return {collectionNft, dustBridging};
   }
 

@@ -8,7 +8,7 @@ import {
 } from "@solana/web3.js";
 import {TOKEN_PROGRAM_ID} from "@solana/spl-token";
 import {Program} from "@project-serum/anchor";
-import {Metaplex, NftWithToken} from "@metaplex-foundation/js";
+import {Metaplex, Cluster, NftWithToken} from "@metaplex-foundation/js";
 import {PROGRAM_ID as METADATA_ID, TokenStandard} from "@metaplex-foundation/mpl-token-metadata";
 import {getPostMessageCpiAccounts} from "@certusone/wormhole-sdk/lib/cjs/solana";
 import {CONTRACTS} from "@certusone/wormhole-sdk";
@@ -17,23 +17,25 @@ import {ethers} from "ethers";
 import {DustBridging as DustBridgingTypes} from "../../target/types/dust_bridging";
 import IDL from "../../target/idl/dust_bridging.json";
 
-const WORMHOLE_ID = new PublicKey(CONTRACTS.MAINNET.solana.core);
-const PROGRAM_ID = new PublicKey("DxPDCoSdg5DWqE89uKh6qpsergPX8nd7DLH5EmyWY5uq");
+const DEFAULT_PROGRAM_ID = new PublicKey("DxPDCoSdg5DWqE89uKh6qpsergPX8nd7DLH5EmyWY5uq");
 
 const SEED_PREFIX_INSTANCE = Buffer.from("instance", "utf-8");
 const SEED_PREFIX_MESSAGE = Buffer.from("message", "utf-8");
 
 export class DustBridging {
+  readonly programId: PublicKey;
+  readonly collectionMint: PublicKey;
+  readonly wormholeId: PublicKey;
   private readonly program: Program<DustBridgingTypes>;
   private readonly metaplex: Metaplex;
-  readonly collectionMint: PublicKey;
 
-  static readonly programId = PROGRAM_ID;
-
-  static messageAccountAddress(nftMint: PublicKey): PublicKey {
+  static messageAccountAddress(
+      nftMint: PublicKeyInitData,
+      programId: PublicKeyInitData = DEFAULT_PROGRAM_ID
+    ): PublicKey {
     return PublicKey.findProgramAddressSync(
-      [SEED_PREFIX_MESSAGE, nftMint.toBuffer()],
-      DustBridging.programId,
+      [SEED_PREFIX_MESSAGE, new PublicKey(nftMint).toBuffer()],
+      new PublicKey(programId),
     )[0];
   }
   
@@ -44,19 +46,35 @@ export class DustBridging {
   constructor(
     connection: Connection,
     collectionMint: PublicKeyInitData,
+    programIds?: {metadata?: PublicKeyInitData, wormholeId?: PublicKeyInitData},
   ) {
-    //we don't pass a cluster argument but let metaplex figure it out from the connection
-    this.metaplex = new Metaplex(connection);
-    this.program = new Program<DustBridgingTypes>(IDL as any, DustBridging.programId, {connection});
+    this.programId = new PublicKey(programIds?.metadata ?? DEFAULT_PROGRAM_ID);
     this.collectionMint = new PublicKey(collectionMint);
     if (this.collectionMint.equals(PublicKey.default))
       throw Error("Collection mint can't be zero address");
+    //we don't pass a cluster argument but let metaplex figure it out from the connection
+    this.metaplex = new Metaplex(connection);
+    this.program = new Program<DustBridgingTypes>(IDL as any, this.programId, {connection});
+
+    const metaplexClusterToWormholeNetwork = (cluster: Cluster) => {
+      if (cluster === 'mainnet-beta')
+        return 'MAINNET';
+      if (cluster === 'devnet')
+        return 'TESTNET';
+      if (cluster === 'localnet')
+        return 'DEVNET';
+      throw Error(`Unsupported cluster ${cluster}, please specify wormhole program id manually`);
+    }
+    this.wormholeId = new PublicKey(
+      programIds?.wormholeId ??
+      CONTRACTS[metaplexClusterToWormholeNetwork(this.metaplex.cluster)].solana.core
+    );
   }
 
   getInstanceAddress(): PublicKey {
     return PublicKey.findProgramAddressSync(
       [SEED_PREFIX_INSTANCE, this.collectionMint.toBuffer()],
-      DustBridging.programId,
+      this.programId,
     )[0];
   }
 
@@ -244,7 +262,7 @@ export class DustBridging {
       nftMasterEdition: nft.edition.address,
       collectionMeta: this.metaplex.nfts().pdas().metadata({mint: this.collectionMint}),
       tokenRecord,
-      wormholeMessage: DustBridging.messageAccountAddress(nft.mint.address),
+      wormholeMessage: DustBridging.messageAccountAddress(nft.mint.address, this.programId),
       metadataProgram: METADATA_ID,
       tokenProgram: TOKEN_PROGRAM_ID,
       sysvarInstructions: SYSVAR_INSTRUCTIONS_PUBKEY,
@@ -270,20 +288,19 @@ export class DustBridging {
     // ourselves.
     const unused = PublicKey.default;
     const {wormholeBridge, wormholeFeeCollector, rent, clock, systemProgram} =
-      getPostMessageCpiAccounts(DustBridging.programId, WORMHOLE_ID, unused, unused);
+      getPostMessageCpiAccounts(this.programId, this.wormholeId, unused, unused);
     
     const SEED_PREFIX_SEQUENCE = Buffer.from("Sequence", "utf-8");
-    const wormholeSequence =
-      PublicKey.findProgramAddressSync(
-        [SEED_PREFIX_SEQUENCE, emitter.toBuffer()],
-        WORMHOLE_ID
-      )[0];
+    const wormholeSequence = PublicKey.findProgramAddressSync(
+      [SEED_PREFIX_SEQUENCE, emitter.toBuffer()],
+      this.wormholeId
+    )[0];
     
     return {
       wormholeBridge,
       wormholeFeeCollector,
       wormholeSequence,
-      wormholeProgram: WORMHOLE_ID,
+      wormholeProgram: this.wormholeId,
       rent,
       clock,
       systemProgram,
