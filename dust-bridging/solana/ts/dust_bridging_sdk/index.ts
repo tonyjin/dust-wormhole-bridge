@@ -233,7 +233,7 @@ export class DustBridging {
       nft.tokenStandard === TokenStandard.ProgrammableNonFungible
       ? this.metaplex.nfts().pdas().tokenRecord({mint: nft.mint.address, token: nftToken})
       : nftToken; //will be ignored, but must be writeable because of Anchor checks
-    return this.program.methods.burnAndSend(batchId, evmRecipientArrayified).accounts({
+    return this.program.methods.burnAndSend(batchId, evmRecipientArrayified as unknown as number[]).accounts({
       instance: instance.address,
       payer,
       nftOwner: nft.token.ownerAddress,

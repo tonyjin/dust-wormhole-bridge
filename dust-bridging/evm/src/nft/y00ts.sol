@@ -62,7 +62,7 @@ contract y00ts is
 
   event Minted(
     uint256 indexed tokenId,
-    address receiver
+    address indexed receiver
   );
 
   //constructor for the logic(!) contract

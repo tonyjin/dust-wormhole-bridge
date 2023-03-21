@@ -6,7 +6,7 @@ import fs from 'fs';
 const connection = new Connection("https://blissful-purple-daylight.solana-devnet.discover.quiknode.pro/e4a2fc8ffff28953792841fd06f3dd1a87374bc6/");
 const bridge = new DustBridging(
   connection,
-  "CaSzLCPQEkqeeniLjRXEVqsqShW7AXExWsxU1RtXz9J2"
+  "CaSzLCPQEkqeeniLjRXEVqsqShW7AXExWsxU1RtXz9J2" // y00ts devnet collection mint
 );
 
 const deployY00ts = async () => {
@@ -49,7 +49,7 @@ const burnY00T = async () => {
   const tx = new Transaction();
   tx.add(await bridge.createSendAndBurnInstruction(
     wallet.publicKey,
-    new PublicKey('29BSMwFtgZXa5GBiArutD2zafn2GT8GawdCKHkzqgV6Y'),//token account
+    new PublicKey('68mNVtGnuBLFtgXMcmy5LdXaUDp5nQVsKCFVDC7RCXWK'),//token account
     "0xC3920d13F00Dc03DE66FA7111600cD2635564147"
   ));
   const latestBlockHash = await connection.getLatestBlockhash();

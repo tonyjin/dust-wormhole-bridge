@@ -56,7 +56,7 @@ contract ContractScript is Script {
 
     function upgradeContract() public {
         // Get deployed contract from proxy
-        nft = y00ts(0x8c0397a833fB02B021503f3c422D48BE8aC8FEE4);
+        nft = y00ts(0x2aC3ff0D83e936b65933f33c7A5D1dFFf8725645);
         // nft = y00ts(0xaED7623ED5F62C238CEE62D36569A40cCdCcC493);
 
         // Build new implementation
@@ -67,19 +67,8 @@ contract ContractScript is Script {
                 baseUri
             );
         // Upgrade
-        nft.upgradeToAndCall(
-            address(newNftImplementation),
-            abi.encodeCall(
-                newNftImplementation.initialize,
-                (
-                    name,
-                    symbol,
-                    dustAmountOnMint,
-                    gasTokenAmountOnMint,
-                    royaltyReceiver,
-                    royaltyFeeNumerator
-                )
-            )
+        nft.upgradeTo(
+            address(newNftImplementation)
         );
     }
 
@@ -89,7 +78,7 @@ contract ContractScript is Script {
 
         // TokenBridgeRelayer.sol
         console.log("Deploying contract");
-        deployContract();
+        upgradeContract();
 
         // finished
         vm.stopBroadcast();
