@@ -9,7 +9,7 @@ use mpl_token_metadata::{
 use crate::{
   instance::Instance,
   anchor_metadata::{self, Metadata},
-  error::DustBridgingError,
+  error::DeBridgeError,
 };
 
 pub type EvmAddress = [u8; 20];
@@ -133,7 +133,7 @@ pub fn burn_and_send(
 
   // 2. if whitelisting is enabled, check if the NFT has been whitelisted
   if accs.instance.whitelist_enabled() && !accs.instance.is_whitelisted(token_id)? {
-    return Err(DustBridgingError::NotYetWhitelisted.into());
+    return Err(DeBridgeError::NotYetWhitelisted.into());
   }
 
   // 3. burn the NFT

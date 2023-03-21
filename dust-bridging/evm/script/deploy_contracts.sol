@@ -6,7 +6,7 @@ import "forge-std/Script.sol";
 import "forge-std/console.sol";
 
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
-import {y00ts} from "../src/nft/y00ts.sol";
+import {DeBridge} from "../src/nft/DeBridge.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "wormhole-solidity/BytesLib.sol";
@@ -26,12 +26,12 @@ contract ContractScript is Script {
     string constant symbol = "y00t";
 
     IWormhole wormhole = IWormhole(0x0CBE91CF822c73C2315FB05100C2F714765d5c20);
-    y00ts nft;
+    DeBridge nft;
     IERC20 dustToken = IERC20(0xAD290867AEFFA008cDC182dC1092bFB378340Ba8);
 
     function deployContract() public {
         //Deploy our contract for testing
-        y00ts nftImplementation = new y00ts(
+        DeBridge nftImplementation = new DeBridge(
                 wormhole,
                 dustToken,
                 minterAddress,
@@ -51,16 +51,16 @@ contract ContractScript is Script {
                 )
             )
         );
-        nft = y00ts(address(proxy));
+        nft = DeBridge(address(proxy));
     }
 
     function upgradeContract() public {
         // Get deployed contract from proxy
-        nft = y00ts(0x2aC3ff0D83e936b65933f33c7A5D1dFFf8725645);
-        // nft = y00ts(0xaED7623ED5F62C238CEE62D36569A40cCdCcC493);
+        nft = DeBridge(0x2aC3ff0D83e936b65933f33c7A5D1dFFf8725645);
+        // nft = DeBridge(0xaED7623ED5F62C238CEE62D36569A40cCdCcC493);
 
         // Build new implementation
-        y00ts newNftImplementation = new y00ts(
+        DeBridge newNftImplementation = new DeBridge(
                 wormhole,
                 dustToken,
                 minterAddress,

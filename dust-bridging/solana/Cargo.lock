@@ -744,6 +744,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "de-bridge"
+version = "1.0.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "mpl-token-metadata",
+ "wormhole-anchor-sdk",
+]
+
+[[package]]
 name = "derivation-path"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -778,16 +788,6 @@ dependencies = [
  "block-buffer 0.10.3",
  "crypto-common",
  "subtle",
-]
-
-[[package]]
-name = "dust-bridging"
-version = "1.0.0"
-dependencies = [
- "anchor-lang",
- "anchor-spl",
- "mpl-token-metadata",
- "wormhole-anchor-sdk",
 ]
 
 [[package]]

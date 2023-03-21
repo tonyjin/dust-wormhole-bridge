@@ -3,7 +3,7 @@ seeds = false
 skip-lint = false
 
 [programs.localnet]
-dust_bridging = "HhX1RVWgGTLrRSiEiXnu4kToHZhFLpqi5qkErkfFnqEQ"
+de_bridge = "HhX1RVWgGTLrRSiEiXnu4kToHZhFLpqi5qkErkfFnqEQ"
 
 [registry]
 url = "https://api.apr.dev"

@@ -14,19 +14,19 @@ import {getPostMessageCpiAccounts} from "@certusone/wormhole-sdk/lib/cjs/solana"
 import {CONTRACTS} from "@certusone/wormhole-sdk";
 import {ethers} from "ethers";
 
-import {DustBridging as DustBridgingTypes} from "../../target/types/dust_bridging";
-import IDL from "../../target/idl/dust_bridging.json";
+import {DeBridge as DeBridgeTypes} from "../../target/types/de_bridge";
+import IDL from "../../target/idl/de_bridge.json";
 
 const DEFAULT_PROGRAM_ID = new PublicKey("DxPDCoSdg5DWqE89uKh6qpsergPX8nd7DLH5EmyWY5uq");
 
 const SEED_PREFIX_INSTANCE = Buffer.from("instance", "utf-8");
 const SEED_PREFIX_MESSAGE = Buffer.from("message", "utf-8");
 
-export class DustBridging {
+export class DeBridge {
   readonly programId: PublicKey;
   readonly collectionMint: PublicKey;
   readonly wormholeId: PublicKey;
-  private readonly program: Program<DustBridgingTypes>;
+  private readonly program: Program<DeBridgeTypes>;
   private readonly metaplex: Metaplex;
 
   static messageAccountAddress(
@@ -54,7 +54,7 @@ export class DustBridging {
       throw Error("Collection mint can't be zero address");
     //we don't pass a cluster argument but let metaplex figure it out from the connection
     this.metaplex = new Metaplex(connection);
-    this.program = new Program<DustBridgingTypes>(IDL as any, this.programId, {connection});
+    this.program = new Program<DeBridgeTypes>(IDL as any, this.programId, {connection});
 
     const metaplexClusterToWormholeNetwork = (cluster: Cluster) => {
       if (cluster === 'mainnet-beta')
@@ -101,12 +101,12 @@ export class DustBridging {
       ? nftTokenOrTokenId
       : await this.getNftTokenId(nftTokenOrTokenId)
     );
-    return DustBridging.isWhitelisted(instance.whitelist!, tokenId);
+    return DeBridge.isWhitelisted(instance.whitelist!, tokenId);
   }
 
   async getNftTokenId(nftToken: PublicKey): Promise<number> {
     const nft = await this.getAndCheckNft(nftToken);
-    return DustBridging.tokenIdFromURI(nft.uri);
+    return DeBridge.tokenIdFromURI(nft.uri);
   }
 
   async getNftAttributes(nftToken: PublicKey) {
@@ -125,7 +125,7 @@ export class DustBridging {
   ) : Promise<TransactionInstruction> {
     const instance = await this.getInstance(false);
     if (instance.isInitialized)
-      throw Error("DustBridging already initialized for this collection");
+      throw Error("DeBridge already initialized for this collection");
 
     const collectionNft = await this.metaplex.nfts().findByMint({mintAddress: this.collectionMint});
 
@@ -156,7 +156,7 @@ export class DustBridging {
   ): Promise<TransactionInstruction> {
     const instance = await this.getInstance();
     if (instance.isPaused === pause)
-      throw Error(`DustBridging already ${pause ? "paused" : "unpaused"}`);
+      throw Error(`DeBridge already ${pause ? "paused" : "unpaused"}`);
     
     return this.program.methods.setPaused(pause).accounts({
       instance: instance.address,
@@ -231,19 +231,19 @@ export class DustBridging {
     
     const instance = await this.getInstance();
     if (instance.isPaused)
-      throw Error("DustBridging is paused");
+      throw Error("DeBridge is paused");
     
     const nft = await this.getAndCheckNft(nftToken) as NftWithToken;
 
     if (instance.collectionSize! > 0) {
-      const tokenId = DustBridging.tokenIdFromURI(nft.uri);
-      if (!DustBridging.isWhitelisted(instance.whitelist!, tokenId))
+      const tokenId = DeBridge.tokenIdFromURI(nft.uri);
+      if (!DeBridge.isWhitelisted(instance.whitelist!, tokenId))
         throw Error(`NFT with tokenId ${tokenId} not yet whitelisted`);
     }
     
     const evmRecipientArrayified = ethers.utils.zeroPad(evmRecipient, 20);
     //For normal NFTs, we can pass in an arbitrary mutable account for the token record account
-    //  since it will be ignored by the DustBridging program anyway and it will substitute it with
+    //  since it will be ignored by the DeBridge program anyway and it will substitute it with
     //  the metadata program id which is the canonical solution according to the documentation - see
     //  https://github.com/metaplex-foundation/metaplex-program-library/blob/master/token-metadata/program/ProgrammableNFTGuide.md#%EF%B8%8F--positional-optional-accounts
     //So for our purposes we simply reuse the nftToken account.
@@ -261,7 +261,7 @@ export class DustBridging {
       nftMasterEdition: nft.edition.address,
       collectionMeta: this.metaplex.nfts().pdas().metadata({mint: this.collectionMint}),
       tokenRecord,
-      wormholeMessage: DustBridging.messageAccountAddress(nft.mint.address, this.programId),
+      wormholeMessage: DeBridge.messageAccountAddress(nft.mint.address, this.programId),
       metadataProgram: METADATA_ID,
       tokenProgram: TOKEN_PROGRAM_ID,
       sysvarInstructions: SYSVAR_INSTRUCTIONS_PUBKEY,
@@ -311,7 +311,7 @@ export class DustBridging {
     const data = await this.program.account.instance.fetchNullable(address);
     const isInitialized = !!data && data.collectionMint.equals(this.collectionMint);
     if (mustBeInitialized && !isInitialized)
-      throw Error("DustBridging not initialized for this collection");
+      throw Error("DeBridge not initialized for this collection");
     return {address, isInitialized,...data};
   }
 

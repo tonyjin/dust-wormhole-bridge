@@ -19,7 +19,7 @@ import {
   createVerifyInstruction,
   VerificationArgs
 } from '@metaplex-foundation/mpl-token-metadata';
-import {DustBridging} from "../dust_bridging_sdk";
+import {DeBridge} from "../de_bridge_sdk";
 
 const LOCALHOST = "http://localhost:8899";
 const GUARDIAN_ADDRESS = "0xbefa429d57cd18b7f8a4d91a2da9ab4af05d0fbe";
@@ -28,7 +28,7 @@ const WORMHOLE_ID = new PublicKey(CONTRACTS.MAINNET.solana.core);
 
 const range = (size: number) => [...Array(size).keys()];
 
-describe("Dust NFT bridging", function() {
+describe("DeLabs NFT bridging", function() {
   const admin = Keypair.generate();
   const connection = new Connection(LOCALHOST, "processed");
   const metaplex = Metaplex.make(connection).use(keypairIdentity(admin));
@@ -55,33 +55,33 @@ describe("Dust NFT bridging", function() {
       isCollection: false,
     });
 
-    const dustBridging = new DustBridging(
+    const deBridge = new DeBridge(
       connection,
       collectionNft.mintAddress,
        //force use of mainnet address despite testing on local cluster because module is configured
        // with mainnet address regardless and hence deployed to that address by Anchor
       {wormholeId: WORMHOLE_ID},
     );
-    return {collectionNft, dustBridging};
+    return {collectionNft, deBridge};
   }
 
   const sendAndConfirmIx = (ix: TransactionInstruction, signers: Keypair[]) =>
     sendAndConfirmTransaction(connection, new Transaction().add(ix), signers);
 
   const initialize = async (
-    dustBridging: DustBridging,
+    deBridge: DeBridge,
     deployer: Keypair,
     whitelistSize: number,
   ) => sendAndConfirmIx(
-    await dustBridging.createInitializeInstruction(deployer.publicKey, whitelistSize), [deployer]
+    await deBridge.createInitializeInstruction(deployer.publicKey, whitelistSize), [deployer]
   );
 
   const setPause = async (
-    dustBridging: DustBridging,
+    deBridge: DeBridge,
     sender: Keypair,
     paused: boolean
   ) => sendAndConfirmIx(
-    await dustBridging.createSetPausedInstruction(sender.publicKey, paused), [sender]
+    await deBridge.createSetPausedInstruction(sender.publicKey, paused), [sender]
   );
 
   before("Fund Admin and Initialize Wormhole", async function() {
@@ -103,21 +103,21 @@ describe("Dust NFT bridging", function() {
   });
 
   describe("Admin/Delegate Operations", function() {
-    let dustBridging: DustBridging;
+    let deBridge: DeBridge;
     const delegate = Keypair.generate();
     const whitelistSize = 10000;
 
-    before("Create a collection NFT and instantiate DustBridging", async function() {
+    before("Create a collection NFT and instantiate DeBridge", async function() {
       await airdropSol(delegate);
-      dustBridging = (await instantiate()).dustBridging;
+      deBridge = (await instantiate()).deBridge;
     });
 
     describe("Initialize Ix", function() {
       const initializeTest = (deployer: Keypair) => async function() {
-        expect(await dustBridging.isInitialized()).equals(false);
+        expect(await deBridge.isInitialized()).equals(false);
         const expectedOutcome = (deployer === admin) ? "fulfilled" : "rejected";
-        await expect(initialize(dustBridging, deployer, whitelistSize)).to.be[expectedOutcome];
-        expect(await dustBridging.isInitialized()).equals(deployer === admin);
+        await expect(initialize(deBridge, deployer, whitelistSize)).to.be[expectedOutcome];
+        expect(await deBridge.isInitialized()).equals(deployer === admin);
       };
 
       it("as a rando", initializeTest(delegate));
@@ -130,9 +130,9 @@ describe("Dust NFT bridging", function() {
     describe("whitelistBulk Ix", function() {
       it("test", async function() {
         for (const tokenId of tokenIdsToWhitelist.concat(notWhitelisted))
-          expect(await dustBridging.isNftWhitelisted(tokenId)).to.equal(false);
+          expect(await deBridge.isNftWhitelisted(tokenId)).to.equal(false);
 
-        const bulkWhitelistIxs = await dustBridging.createWhitelistBulkInstructions(
+        const bulkWhitelistIxs = await deBridge.createWhitelistBulkInstructions(
           admin.publicKey,
           range(whitelistSize).map(index => tokenIdsToWhitelist.includes(index))
         );
@@ -141,23 +141,23 @@ describe("Dust NFT bridging", function() {
           await expect(sendAndConfirmIx(ix, [admin])).to.be.fulfilled;
         
         for (const tokenId of tokenIdsToWhitelist)
-          expect(await dustBridging.isNftWhitelisted(tokenId)).to.equal(true);
+          expect(await deBridge.isNftWhitelisted(tokenId)).to.equal(true);
         
         for (const tokenId of notWhitelisted)
-          expect(await dustBridging.isNftWhitelisted(tokenId)).to.equal(false);
+          expect(await deBridge.isNftWhitelisted(tokenId)).to.equal(false);
       })
     });
 
     describe("delegation", function() {
       const setDelegate = async (newDelegate: PublicKey | null) => sendAndConfirmTransaction(
         connection,
-        new Transaction().add(await dustBridging.createSetDelegateInstruction(newDelegate)),
+        new Transaction().add(await deBridge.createSetDelegateInstruction(newDelegate)),
         [admin]
       );
 
       const delegateWhitelist = async (tokenId: number) => sendAndConfirmTransaction(
         connection,
-        new Transaction().add(await dustBridging.createWhitelistInstruction(
+        new Transaction().add(await deBridge.createWhitelistInstruction(
           delegate.publicKey,
           tokenId,
         )),
@@ -169,7 +169,7 @@ describe("Dust NFT bridging", function() {
       });
 
       it("unauthorized delegate can't pause", async function() {
-        await expect(setPause(dustBridging, delegate, true)).to.be.rejected;
+        await expect(setPause(deBridge, delegate, true)).to.be.rejected;
       });
 
       it("admin authorizes delegate", async function() {
@@ -177,18 +177,18 @@ describe("Dust NFT bridging", function() {
       });
 
       it("authorized delegate pauses", async function() {
-        await expect(setPause(dustBridging, delegate, true)).to.be.fulfilled;
+        await expect(setPause(deBridge, delegate, true)).to.be.fulfilled;
       });
 
       it("admin unpauses", async function() {
-        await expect(setPause(dustBridging, admin, false)).to.be.fulfilled;
+        await expect(setPause(deBridge, admin, false)).to.be.fulfilled;
       });
 
       it("delegate whitelists", async function() {
         const tokenId = notWhitelisted[0];
-        expect(await dustBridging.isNftWhitelisted(tokenId)).to.equal(false);
+        expect(await deBridge.isNftWhitelisted(tokenId)).to.equal(false);
         await expect(delegateWhitelist(tokenId)).to.be.fulfilled;
-        expect(await dustBridging.isNftWhitelisted(tokenId)).to.equal(true);
+        expect(await deBridge.isNftWhitelisted(tokenId)).to.equal(true);
       });
 
       it("delegate whitelists out of bounds", async function() {
@@ -200,7 +200,7 @@ describe("Dust NFT bridging", function() {
       });
 
       it("delegate can't pause anymore", async function() {
-        await expect(setPause(dustBridging, delegate, true)).to.be.rejected;
+        await expect(setPause(deBridge, delegate, true)).to.be.rejected;
       });
 
       it("delegate can't whitelist anymore", async function() {
@@ -225,7 +225,7 @@ describe("Dust NFT bridging", function() {
     " with" + (useWhitelist ? "" : "out") + " using a whitelist", function() {
     const user = Keypair.generate();
     let collectionNft: CreateNftOutput;
-    let dustBridging: DustBridging;
+    let deBridge: DeBridge;
     let userNft: CreateNftOutput;
     const tokenId = 3250;
     const whitelistSize = useWhitelist ? 10000 : 0;
@@ -234,7 +234,7 @@ describe("Dust NFT bridging", function() {
 
     const evmRecipient = "0x" + "00123456".repeat(5);
     const burnAndSend = async (sender: Keypair) => sendAndConfirmIx(
-      await dustBridging.createSendAndBurnInstruction(
+      await deBridge.createSendAndBurnInstruction(
         sender.publicKey,
         userNft.tokenAddress,
         evmRecipient,
@@ -242,12 +242,12 @@ describe("Dust NFT bridging", function() {
       [sender]
     );
 
-    before("Mint NFTs, instantiate and initialize DustBridging, fund the user", async function() {
+    before("Mint NFTs, instantiate and initialize DeBridge, fund the user", async function() {
       await airdropSol(user);
       const res = await instantiate(tokenStandard);
       collectionNft = res.collectionNft;
-      dustBridging = res.dustBridging;
-      await initialize(dustBridging, admin, whitelistSize);
+      deBridge = res.deBridge;
+      await initialize(deBridge, admin, whitelistSize);
 
       expect(await nftCount(user)).equals(0);
 
@@ -300,18 +300,18 @@ describe("Dust NFT bridging", function() {
     if (useWhitelist) {
       describe("without whitelisting the NFT", function() {
         it("as the owner of the NFT ", async function() {
-          expect (await dustBridging.isNftWhitelisted(tokenId)).to.equal(false);
+          expect (await deBridge.isNftWhitelisted(tokenId)).to.equal(false);
           await expect(burnAndSend(user)).to.be.rejected;
         });
       });
 
       describe("after whitelisting the NFT", function() {
         before("whitelist the NFT via whitelist instruction", async function() {
-          expect (await dustBridging.isNftWhitelisted(tokenId)).to.equal(false);
+          expect (await deBridge.isNftWhitelisted(tokenId)).to.equal(false);
           await expect(sendAndConfirmIx(
-            await dustBridging.createWhitelistInstruction(admin.publicKey, tokenId), [admin]
+            await deBridge.createWhitelistInstruction(admin.publicKey, tokenId), [admin]
           )).to.be.fulfilled;
-          expect (await dustBridging.isNftWhitelisted(tokenId)).to.equal(true);
+          expect (await deBridge.isNftWhitelisted(tokenId)).to.equal(true);
         });
 
         it("when not the owner of the NFT", async function() {
@@ -322,7 +322,7 @@ describe("Dust NFT bridging", function() {
 
     describe("not while paused", function() {
       before("pause", async function() {
-        await expect(setPause(dustBridging, admin, true)).to.be.fulfilled;
+        await expect(setPause(deBridge, admin, true)).to.be.fulfilled;
       });
 
       it("as the owner of the NFT", async function() {
@@ -330,7 +330,7 @@ describe("Dust NFT bridging", function() {
       });
 
       after("unpause", async function() {
-        await expect(setPause(dustBridging, admin, false)).to.be.fulfilled;
+        await expect(setPause(deBridge, admin, false)).to.be.fulfilled;
       });
     });
 
@@ -345,7 +345,7 @@ describe("Dust NFT bridging", function() {
 
       it("... and that the correct Wormhole message was emitted", async function() {
         const {payload} = (await wormhole.getPostedMessage(
-          connection, DustBridging.messageAccountAddress(userNft.mintAddress)
+          connection, DeBridge.messageAccountAddress(userNft.mintAddress)
         )).message;
 
         expect(payload.readUint16BE(0)).to.equal(tokenId);

@@ -1,10 +1,10 @@
-import { DustBridging } from "./dust_bridging_sdk";
+import { DeBridge } from "./de_bridge_sdk";
 import { Connection, PublicKey, Transaction, sendAndConfirmRawTransaction, Keypair } from "@solana/web3.js";
 import bs58 from "bs58";
 import fs from 'fs';
 
 const connection = new Connection("https://blissful-purple-daylight.solana-devnet.discover.quiknode.pro/e4a2fc8ffff28953792841fd06f3dd1a87374bc6/");
-const bridge = new DustBridging(
+const bridge = new DeBridge(
   connection,
   "CaSzLCPQEkqeeniLjRXEVqsqShW7AXExWsxU1RtXz9J2" // y00ts devnet collection mint
 );

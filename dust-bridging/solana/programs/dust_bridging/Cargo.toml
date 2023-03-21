@@ -1,12 +1,12 @@
 [package]
-name = "dust-bridging"
+name = "de-bridge"
 version = "1.0.0"
 description = ""
 edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "dust_bridging"
+name = "de_bridge"
 
 [features]
 no-entrypoint = []

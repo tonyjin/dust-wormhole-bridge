@@ -10,7 +10,7 @@ use instructions::*;
 declare_id!("HhX1RVWgGTLrRSiEiXnu4kToHZhFLpqi5qkErkfFnqEQ");
 
 #[program]
-pub mod dust_bridging {
+pub mod de_bridge {
   use super::*;
 
   pub fn initialize(
