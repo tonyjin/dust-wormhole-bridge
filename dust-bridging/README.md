@@ -1,6 +1,6 @@
 # Purpose
 
-This repo contains all the necessary components to facilitate bridging of Dust's [DeGods](https://degods.com/) and [y00ts](https://www.y00ts.com/) NFT collection from Solana to Ethereum and Polygon respectively, namely:
+This repo contains all the necessary components to facilitate bridging of DeLabs's [DeGods](https://degods.com/) and [y00ts](https://www.y00ts.com/) NFT collection from Solana to Ethereum and Polygon respectively, namely:
 * A [Solana program](https://docs.solana.com/terminology#program) which burns NFTs and publishes [Wormhole message](https://book.wormhole.com/wormhole/3_coreLayerContracts.html#sending)s, thus initiating the bridging process.
 * A relayer engine which observes the [Wormhole Guardian Network](https://book.wormhole.com/wormhole/5_guardianNetwork.html), picks up [VAA](https://book.wormhole.com/wormhole/4_vaa.html)s corresponding to these messages, and submits them to ...
 * An EVM NFT token contract deployed to both target chains which takes such VAAs and mints the equivalent NFTs on that chain, thus concluding the bridging process.
@@ -43,7 +43,7 @@ https://wormhole-v2-testnet-api.certus.one/v1/signed_vaa/1/3a5a8772eeab57012f4a0
 To parse a VAA thus retrieved one can use the following dev tool:
 https://vaa.dev/
 
-# Dust Collections
+# DeLabs Collections
 
 * Token ids (the number in the token's metadata URI) are always 1 less than the token number (the number in the token's name).
 

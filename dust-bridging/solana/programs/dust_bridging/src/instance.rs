@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use crate::error::DustBridgingError;
+use crate::error::DeBridgeError;
 
 #[account]
 /// Instance account doubles as emitter
@@ -32,7 +32,7 @@ impl Instance {
 
   fn check_token_id(&self, token_id: u16) -> Result<()> {
     if token_id >= self.collection_size {
-      return Err(DustBridgingError::TokenIdOutOfBounds.into());
+      return Err(DeBridgeError::TokenIdOutOfBounds.into());
     }
     Ok(())
   }
@@ -56,7 +56,7 @@ impl Instance {
 
   pub fn whitelist_bulk(&mut self, offset: u16, slice: Vec<u8>) -> Result<()> {
     if offset + slice.len() as u16 > self.collection_size {
-      return Err(DustBridgingError::TokenIdOutOfBounds.into());
+      return Err(DeBridgeError::TokenIdOutOfBounds.into());
     }
     self.whitelist[offset as usize..offset as usize + slice.len()].copy_from_slice(&slice);
     Ok(())

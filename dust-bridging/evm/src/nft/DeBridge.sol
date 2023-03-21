@@ -12,14 +12,14 @@ import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {BytesLib} from "wormhole-solidity/BytesLib.sol";
 
 /**
- * @title  DustWormholeERC721Upgradeable
+ * @title  DeBridge
  * @notice ERC721 that mints tokens based on VAAs.
  *         This contract is configured to use the DefaultOperatorFilterer, which automatically
  *         registers the token and subscribes it to OpenSea's curated filters.
  *         Adding the onlyAllowedOperator modifier to the transferFrom and both safeTransferFrom
  *         methods ensures that the msg.sender (operator) is allowed by the OperatorFilterRegistry.
  */
-contract DustWormholeERC721Upgradeable is
+contract DeBridge is
   UUPSUpgradeable,
   ERC721EnumerableUpgradeable,
   ERC2981Upgradeable,
@@ -59,6 +59,11 @@ contract DustWormholeERC721Upgradeable is
   error BaseUriEmpty();
   error BaseUriTooLong();
   error InvalidMsgValue();
+
+  event Minted(
+    uint256 indexed tokenId,
+    address indexed receiver
+  );
 
   //constructor for the logic(!) contract
   constructor(
@@ -126,7 +131,7 @@ contract DustWormholeERC721Upgradeable is
    * Mints an NFT based on an valid VAA and kickstarts the recipient's wallet with
    *   gas tokens (ETH or MATIC) and DUST (taken from msg.sender unless msg.sender is recipient).
    * TokenId and recipient address are taken from the VAA.
-   * The Wormhole message must have been published by the DustBridging instance of the
+   * The Wormhole message must have been published by the DeBridge instance of the
    *   NFT collection with the specified emitter on Solana (chainId = 1).
    */
   function receiveAndMint(bytes calldata vaa) external payable {
@@ -147,6 +152,7 @@ contract DustWormholeERC721Upgradeable is
 
     (uint256 tokenId, address evmRecipient) = parsePayload(vm.payload);
     _safeMint(evmRecipient, tokenId);
+    emit Minted(tokenId, evmRecipient);
     
     if (msg.sender != evmRecipient) {
       if (msg.value != _gasTokenAmountOnMint)

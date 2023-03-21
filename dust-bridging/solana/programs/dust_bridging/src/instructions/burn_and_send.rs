@@ -9,7 +9,7 @@ use mpl_token_metadata::{
 use crate::{
   instance::Instance,
   anchor_metadata::{self, Metadata},
-  error::DustBridgingError,
+  error::DeBridgeError,
 };
 
 pub type EvmAddress = [u8; 20];
@@ -133,7 +133,7 @@ pub fn burn_and_send(
 
   // 2. if whitelisting is enabled, check if the NFT has been whitelisted
   if accs.instance.whitelist_enabled() && !accs.instance.is_whitelisted(token_id)? {
-    return Err(DustBridgingError::NotYetWhitelisted.into());
+    return Err(DeBridgeError::NotYetWhitelisted.into());
   }
 
   // 3. burn the NFT
@@ -227,8 +227,15 @@ pub fn burn_and_send(
     wormhole::Finality::Finalized,
   )?;
 
-  // 6. log token id
+  // 6. log accounts
   msg!("token id: {}", token_id);
+  msg!("token mint: {}", accs.nft_mint.key());
+  // convert evm_recipient to a string
+  let mut evm_recipient_str = String::from("0x");
+  for i in 0..evm_recipient.len() {
+    evm_recipient_str.push_str(&format!("{:02x}", evm_recipient[i]));
+  }
+  msg!("evm recipient: {}", evm_recipient_str);
 
   Ok(())
 }

@@ -8,3 +8,5 @@ out.log
 broadcast
 forge-scripts/deploy.out
 ts-types
+dist
+.env

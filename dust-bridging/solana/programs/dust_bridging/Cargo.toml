@@ -1,12 +1,12 @@
 [package]
-name = "dust-bridging"
+name = "de-bridge"
 version = "1.0.0"
 description = ""
 edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "dust_bridging"
+name = "de_bridge"
 
 [features]
 no-entrypoint = []
@@ -19,4 +19,5 @@ default = []
 anchor-lang = { version="0.26.0" }
 anchor-spl = { version = "0.26.0" }
 mpl-token-metadata = { version="1.9.0", features = [ "no-entrypoint" ] }
-wormhole-anchor-sdk = { path = "../../modules/wormhole-anchor-sdk", features = ["mainnet"] }
+wormhole-anchor-sdk = { path = "../../modules/wormhole-anchor-sdk", features = ["solana-devnet"] }
+
