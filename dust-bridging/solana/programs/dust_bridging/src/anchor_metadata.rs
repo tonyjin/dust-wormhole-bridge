@@ -1,3 +1,8 @@
+//anchor_spl has a (non-documentated) feature by the name of mpl-token-metadata
+// which wraps Metaplex Metadata accounts but it's try_deserialize function is implemented
+// incorrectly because it doesn't check that the metadata has actually been initialized!
+//Hence, we're rolling our own here.
+
 use anchor_lang::prelude::*;
 use mpl_token_metadata::{
   ID as METADATA_ID,

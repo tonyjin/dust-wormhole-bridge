@@ -15,6 +15,7 @@ build: dependencies
 	anchor build
 
 dependencies:
+	@bash solana_check.sh
 	yarn
 	$(MAKE) -C dependencies
 

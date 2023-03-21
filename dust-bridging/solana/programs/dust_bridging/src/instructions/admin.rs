@@ -53,17 +53,9 @@ pub struct Whitelist<'info> {
 }
 
 pub fn whitelist(ctx: Context<Whitelist>, token_ids: Vec<u16>) -> Result<()> {
-  let whitelist = &mut ctx.accounts.instance.whitelist;
-  for token_id in token_ids {
-    whitelist[token_id as usize / 8] |= 1 << (token_id % 8);
-  }
-
-  Ok(())
+  ctx.accounts.instance.whitelist_tokens(token_ids)
 }
 
 pub fn whitelist_bulk(ctx: Context<Whitelist>, offset: u16, slice: Vec<u8>) -> Result<()> {
-  let whitelist = &mut ctx.accounts.instance.whitelist;
-  whitelist[offset as usize..offset as usize + slice.len()].copy_from_slice(&slice);
-
-  Ok(())
+  ctx.accounts.instance.whitelist_bulk(offset, slice)
 }

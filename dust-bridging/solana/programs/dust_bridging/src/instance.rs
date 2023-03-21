@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use crate::error::DustBridgingError;
 
 #[account]
 /// Instance account doubles as emitter
@@ -29,11 +30,35 @@ impl Instance {
 
   pub const SEED_PREFIX: &'static [u8; 8] = b"instance";
 
+  fn check_token_id(&self, token_id: u16) -> Result<()> {
+    if token_id >= self.collection_size {
+      return Err(DustBridgingError::TokenIdOutOfBounds.into());
+    }
+    Ok(())
+  }
+
   pub fn whitelist_enabled(&self) -> bool {
     self.collection_size > 0
   }
 
-  pub fn is_whitelisted(&self, token_id: u16) -> bool {
-    self.whitelist[token_id as usize / 8] & (1u8 << (token_id % 8)) > 0
+  pub fn is_whitelisted(&self, token_id: u16) -> Result<bool> {
+    self.check_token_id(token_id)?;
+    Ok(self.whitelist[token_id as usize / 8] & (1u8 << (token_id % 8)) > 0)
+  }
+
+  pub fn whitelist_tokens(&mut self, token_ids: Vec<u16>) -> Result<()> {
+    for token_id in token_ids {
+      self.check_token_id(token_id)?;
+      self.whitelist[token_id as usize / 8] |= 1 << (token_id % 8);
+    }
+    Ok(())
+  }
+
+  pub fn whitelist_bulk(&mut self, offset: u16, slice: Vec<u8>) -> Result<()> {
+    if offset + slice.len() as u16 > self.collection_size {
+      return Err(DustBridgingError::TokenIdOutOfBounds.into());
+    }
+    self.whitelist[offset as usize..offset as usize + slice.len()].copy_from_slice(&slice);
+    Ok(())
   }
 }

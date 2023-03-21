@@ -2,17 +2,11 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::Mint;
 use crate::anchor_metadata::Metadata;
 use mpl_token_metadata::ID as METADATA_ID;
-// use metaplex_anchor_sdk::{
-//   metadata::{
-//     program::ID as METADATA_ID,
-//     accounts::Metadata,
-//   },
-// };
 
 use crate::instance::Instance;
 
 const fn whitelist_bytes(collection_size: u16) -> usize {
-  (collection_size/8 + if (collection_size % 8) > 0 {1} else {0}) as usize
+  ((collection_size+7)/8) as usize
 }
 
 #[derive(Accounts)]
@@ -43,7 +37,6 @@ pub struct Initialize<'info> {
     seeds::program = METADATA_ID,
     has_one = update_authority,
   )]
-  //WARNING: anchor_spl does not check that the metadata has actually been initialized!
   pub collection_meta: Account<'info, Metadata>,
 
   pub system_program: Program<'info, System>,
@@ -64,4 +57,19 @@ pub fn initialize(ctx: Context<Initialize>, collection_size: u16) -> Result<()> 
   instance.whitelist = vec![0; whitelist_bytes(collection_size)];
 
   Ok(())
+}
+
+#[cfg(test)]
+pub mod test {
+  use super::*;
+
+  #[test]
+  fn test_whitelist_bytes() -> Result<()> {
+    assert_eq!(whitelist_bytes(0), 0);
+    assert_eq!(whitelist_bytes(1), 1);
+    assert_eq!(whitelist_bytes(7), 1);
+    assert_eq!(whitelist_bytes(8), 1);
+    assert_eq!(whitelist_bytes(9), 2);
+    Ok(())
+  }
 }
