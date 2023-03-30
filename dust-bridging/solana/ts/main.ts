@@ -20,7 +20,7 @@ const bridge = new DeBridge(
   // "GUfjvMzmDBVmFGuwY1rsHCcryDg9BnH5qckrBjikJvPn", // degods devnet collection mint
   "6XxjKYFbcndh2gDcsUrmZgVEsoDxXMnfsaGY6fpTJzNr", // degods mainnet collection mint
   {
-    metadata: "35iLrpYNNR9ygHLcvE1xKFHbHq6paHthrF6wSovdWgGu", // y00ts mainnet program address
+    metadata: "35iLrpYNNR9ygHLcvE1xKFHbHq6paHthrF6wSovdWgGu", // mainnet program address
     wormholeId: "worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth", // mainnet wormhole id
     // metadata: "HhX1RVWgGTLrRSiEiXnu4kToHZhFLpqi5qkErkfFnqEQ", // devnet
     // wormholeId: "3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5" // devnet
@@ -94,7 +94,7 @@ const pauseY00ts = async () => {
   tx.add(
     await bridge.createSetPausedInstruction(
       wallet.publicKey,
-      true
+      true //change that to false to unpause
     )
   )
 
