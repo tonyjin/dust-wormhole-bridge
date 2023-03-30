@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-import {DeBridge} from "../src/nft/DeBridge.sol";
+import {DeGods} from "../src/nft/DeGods.sol";
 import {MockWormhole} from "wormhole-solidity/MockWormhole.sol";
 import {WormholeSimulator, FakeWormholeSimulator} from "wormhole-solidity/WormholeSimulator.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
@@ -35,7 +35,7 @@ contract TestCoreRelayer is Test {
 
   IWormhole wormhole;
   WormholeSimulator wormholeSimulator;
-  DeBridge nft;
+  DeGods nft;
   IERC20 dustToken;
 
   function setUp() public {
@@ -54,17 +54,17 @@ contract TestCoreRelayer is Test {
     dustToken = new MockDust(dustAmountOnMint * 10);
 
     //Deploy our contract for testing
-    DeBridge nftImplementation =
-      new DeBridge(wormhole, dustToken, minterAddress, baseUri);
+    DeGods nftImplementation =
+      new DeGods(wormhole, dustToken, minterAddress, baseUri);
     ERC1967Proxy proxy = new ERC1967Proxy(
       address(nftImplementation),
       abi.encodeCall(
         nftImplementation.initialize,
         (name, symbol, dustAmountOnMint, gasTokenAmountOnMint, royaltyReceiver, royaltyFeeNumerator)
-        //(name, symbol, dustAmountOnMint, gasTokenAmountOnMint)
+        // (name, symbol, dustAmountOnMint, gasTokenAmountOnMint)
       )
     );
-    nft = DeBridge(address(proxy));
+    nft = DeGods(address(proxy));
   }
 
   /**

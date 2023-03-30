@@ -7,7 +7,7 @@ pub mod anchor_metadata;
 
 use instructions::*;
 
-declare_id!("HhX1RVWgGTLrRSiEiXnu4kToHZhFLpqi5qkErkfFnqEQ");
+declare_id!("35iLrpYNNR9ygHLcvE1xKFHbHq6paHthrF6wSovdWgGu");
 
 #[program]
 pub mod de_bridge {

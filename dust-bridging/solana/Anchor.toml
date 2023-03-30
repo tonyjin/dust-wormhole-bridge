@@ -3,14 +3,14 @@ seeds = false
 skip-lint = false
 
 [programs.localnet]
-de_bridge = "HhX1RVWgGTLrRSiEiXnu4kToHZhFLpqi5qkErkfFnqEQ"
+de_bridge = "35iLrpYNNR9ygHLcvE1xKFHbHq6paHthrF6wSovdWgGu"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "devnet"
-wallet = "./wallet/devnet.json"
+cluster = "mainnet"
+wallet = "./wallet/DeBgVw3fCEMdTNjNYFmvJ1CjC5Mj32TYdUHrpUbbR5w3.json"
 
 [scripts]
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 ts/tests/*.ts"
@@ -20,5 +20,5 @@ address = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
 program = "./dependencies/mpl_token_metadata.so"
 
 [[test.genesis]]
-address = "3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5"
+address = "worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth"
 program = "./dependencies/wormhole.so"
