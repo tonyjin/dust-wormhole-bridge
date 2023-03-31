@@ -56,7 +56,15 @@ pub struct BurnAndSend<'info> {
   /// CHECK: account will be checked by the metaplex metadata program
   pub nft_mint: UncheckedAccount<'info>,
 
-  #[account(mut)]
+  #[account(
+    mut,
+    constraint = nft_meta.token_standard.is_some() &&
+      ( nft_meta.token_standard.unwrap() == TokenStandard::NonFungible ||
+        nft_meta.token_standard.unwrap() == TokenStandard::ProgrammableNonFungible) &&
+      nft_meta.collection.is_some() &&
+      nft_meta.collection.as_ref().unwrap().verified &&
+      nft_meta.collection.as_ref().unwrap().key == instance.collection_mint
+  )]
   //we need the uri of the nft thus we have to deserialize its metadata
   //we have to box the account as to not exceed max stack offset of 4k
   /// CHECK: account will be checked by the metaplex metadata program
