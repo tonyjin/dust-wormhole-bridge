@@ -8,6 +8,7 @@ import {
 } from "@solana/web3.js";
 import bs58 from "bs58";
 import fs from "fs";
+import pLimit from "p-limit";
 
 // const connection = new Connection("https://blissful-purple-daylight.solana-devnet.discover.quiknode.pro/e4a2fc8ffff28953792841fd06f3dd1a87374bc6/");
 const connection = new Connection(
@@ -76,7 +77,7 @@ const deploy = async () => {
   console.log(txid);
 };
 
-const pauseY00ts = async () => {
+const pause = async () => {
   // Keypair
   var wallet = Keypair.fromSecretKey(
     Uint8Array.from(
@@ -94,7 +95,7 @@ const pauseY00ts = async () => {
   tx.add(
     await bridge.createSetPausedInstruction(
       wallet.publicKey,
-      true //change that to false to unpause
+      false //change that to false to unpause
     )
   )
 
@@ -146,7 +147,7 @@ const initializeWhitelists = async () => {
       JSON.parse(
         fs
           .readFileSync(
-            "./wallet/devnet.json"
+            "./wallet/degods.json"
           )
           .toString()
       )
@@ -165,7 +166,7 @@ const initializeWhitelists = async () => {
 
   // ONLY FOR DEVNET
   // MAINNET SHOULD BE 10000 instead of 9465
-  const whitelist = [...Array(9465).keys()].map(
+  const whitelist = [...Array(10000).keys()].map(
     (id)=>{
       if(!unclaimedDeGodsIds.includes(id) && !burntIds.includes(id)) return true;
       return false;
@@ -175,6 +176,8 @@ const initializeWhitelists = async () => {
     wallet.publicKey,
     whitelist
   )
+
+  console.log(instructions.length,'instructions');
 
   //Transaction will be too large, cut in half
   const firstTx = new Transaction().add(instructions[0]);
@@ -190,7 +193,7 @@ const initializeWhitelists = async () => {
   });
   console.log('firstTx', firstTxId);
 
-  const secondTx = new Transaction().add(instructions[0]);
+  const secondTx = new Transaction().add(instructions[1]);
   latestBlockHash = await connection.getLatestBlockhash();
   secondTx.recentBlockhash = latestBlockHash.blockhash;
   secondTx.feePayer = wallet.publicKey;
@@ -204,7 +207,33 @@ const initializeWhitelists = async () => {
   console.log('secondTx', secondTxId);
 };
 
-const whitelistOne = async () => {
+const whitelistOne = async (tokenId: number, keypair: Keypair) => {
+  if(await bridge.isNftWhitelisted(tokenId)){
+    console.log(tokenId, 'already whitelisted');
+    return;
+  }
+
+  const instructions = await bridge.createWhitelistInstruction(
+    keypair.publicKey,
+    tokenId
+  )
+
+  //Transaction will be too large, cut in half
+  const tx = new Transaction().add(instructions);
+  let latestBlockHash = await connection.getLatestBlockhash();
+  tx.recentBlockhash = latestBlockHash.blockhash;
+  tx.feePayer = keypair.publicKey;
+  tx.sign(keypair);
+
+  const txId = await sendAndConfirmRawTransaction(connection, tx.serialize(), {
+    blockhash: latestBlockHash.blockhash,
+    lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+    signature: bs58.encode(tx.signature as Buffer),
+  });
+  console.log(tokenId, 'whitelisted', txId);
+};
+
+const whitelistMany = async (tokenIds: number[]) => {
   var wallet = Keypair.fromSecretKey(
     Uint8Array.from(
       JSON.parse(
@@ -217,26 +246,13 @@ const whitelistOne = async () => {
     )
   );
 
-  const instructions = await bridge.createWhitelistInstruction(
-    wallet.publicKey,
-    2291
+  const limit = pLimit(1);
+
+  await Promise.all(
+    tokenIds.map((id) => limit(() => whitelistOne(id, wallet)))
   )
-
-  //Transaction will be too large, cut in half
-  const firstTx = new Transaction().add(instructions);
-  let latestBlockHash = await connection.getLatestBlockhash();
-  firstTx.recentBlockhash = latestBlockHash.blockhash;
-  firstTx.feePayer = wallet.publicKey;
-  firstTx.sign(wallet);
-
-  const firstTxId = await sendAndConfirmRawTransaction(connection, firstTx.serialize(), {
-    blockhash: latestBlockHash.blockhash,
-    lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
-    signature: bs58.encode(firstTx.signature as Buffer),
-  });
-  console.log('firstTx', firstTxId);
 };
 
-pauseY00ts()
-  .then(() => console.log("Done"))
+whitelistMany([])
+  .then((res) => console.log("Done"))
   .catch((err) => console.error(err));
