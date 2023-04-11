@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-import {DeGods} from "../src/nft/DeGods.sol";
+import {DeGodsV2} from "../src/nft/DeGodsV2.sol";
 import {MockWormhole} from "wormhole-solidity/MockWormhole.sol";
 import {WormholeSimulator, FakeWormholeSimulator} from "wormhole-solidity/WormholeSimulator.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
@@ -35,7 +35,7 @@ contract TestCoreRelayer is Test {
 
   IWormhole wormhole;
   WormholeSimulator wormholeSimulator;
-  DeGods nft;
+  DeGodsV2 nft;
   IERC20 dustToken;
 
   function setUp() public {
@@ -54,8 +54,8 @@ contract TestCoreRelayer is Test {
     dustToken = new MockDust(dustAmountOnMint * 10);
 
     //Deploy our contract for testing
-    DeGods nftImplementation =
-      new DeGods(wormhole, dustToken, minterAddress, baseUri);
+    DeGodsV2 nftImplementation =
+      new DeGodsV2(wormhole, dustToken, minterAddress, baseUri);
     ERC1967Proxy proxy = new ERC1967Proxy(
       address(nftImplementation),
       abi.encodeCall(
@@ -64,7 +64,7 @@ contract TestCoreRelayer is Test {
         // (name, symbol, dustAmountOnMint, gasTokenAmountOnMint)
       )
     );
-    nft = DeGods(address(proxy));
+    nft = DeGodsV2(address(proxy));
   }
 
   /**
