@@ -4,21 +4,23 @@ pragma solidity 0.8.19;
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {IERC721Upgradeable, ERC721Upgradeable, ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
+import {IERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
+import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import {ERC2981Upgradeable} from "@openzeppelin/contracts-upgradeable/token/common/ERC2981Upgradeable.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {BytesLib} from "wormhole-solidity/BytesLib.sol";
+import {DummyERC721EnumerableUpgradeable} from "./DummyERC721EnumerableUpgradeable.sol";
 
 /**
  * @title  DeBridge
  * @notice ERC721 that mints tokens based on VAAs.
  */
 abstract contract BaseWormholeBridgedNft is
-UUPSUpgradeable,
-ERC721EnumerableUpgradeable,
-ERC2981Upgradeable,
-Ownable2StepUpgradeable
+	UUPSUpgradeable,
+	DummyERC721EnumerableUpgradeable,
+	ERC2981Upgradeable,
+	Ownable2StepUpgradeable
 {
 	using BytesLib for bytes;
 	using SafeERC20 for IERC20;
@@ -31,12 +33,12 @@ Ownable2StepUpgradeable
 	// Core layer Wormhole contract.
 	IWormhole private immutable _wormhole;
 	// ERC20 DUST token contract.
-	IERC20    private immutable _dustToken;
+	IERC20 private immutable _dustToken;
 	// Only VAAs from this emitter can mint NFTs with our contract (prevents spoofing).
-	bytes32   private immutable _emitterAddress;
+	bytes32 private immutable _emitterAddress;
 	// Common URI for all NFTs handled by this contract.
-	bytes32   private immutable _baseUri;
-	uint8     private immutable _baseUriLength;
+	bytes32 private immutable _baseUri;
+	uint8 private immutable _baseUriLength;
 
 	// Amount of DUST to transfer to the minter on upon relayed mint.
 	uint256 private _dustAmountOnMint;
@@ -54,10 +56,7 @@ Ownable2StepUpgradeable
 	error BaseUriTooLong();
 	error InvalidMsgValue();
 
-	event Minted(
-		uint256 indexed tokenId,
-		address indexed receiver
-	);
+	event Minted(uint256 indexed tokenId, address indexed receiver);
 
 	//constructor for the logic(!) contract
 	constructor(
@@ -80,7 +79,7 @@ Ownable2StepUpgradeable
 		_baseUriLength = uint8(baseUri.length);
 
 		//brick logic contract
-		initialize("","",0,0,address(1),0);
+		initialize("", "", 0, 0, address(1), 0);
 		renounceOwnership();
 	}
 
@@ -114,7 +113,11 @@ Ownable2StepUpgradeable
 		_gasTokenAmountOnMint = gasTokenAmountOnMint;
 	}
 
-	function getAmountsOnMint() external view returns (uint256 dustAmountOnMint, uint256 gasTokenAmountOnMint) {
+	function getAmountsOnMint()
+		external
+		view
+		returns (uint256 dustAmountOnMint, uint256 gasTokenAmountOnMint)
+	{
 		dustAmountOnMint = _dustAmountOnMint;
 		gasTokenAmountOnMint = _gasTokenAmountOnMint;
 	}
@@ -127,18 +130,16 @@ Ownable2StepUpgradeable
 	 *   NFT collection with the specified emitter on Solana (chainId = 1).
 	 */
 	function receiveAndMint(bytes calldata vaa) external payable {
-		(IWormhole.VM memory vm, bool valid, string memory reason) = _wormhole.parseAndVerifyVM(vaa);
-		if (!valid)
-			revert FailedVaaParseAndVerification(reason);
+		(IWormhole.VM memory vm, bool valid, string memory reason) = _wormhole.parseAndVerifyVM(
+			vaa
+		);
+		if (!valid) revert FailedVaaParseAndVerification(reason);
 
-		if (vm.emitterChainId != SOURCE_CHAIN_ID)
-			revert WrongEmitterChainId();
+		if (vm.emitterChainId != SOURCE_CHAIN_ID) revert WrongEmitterChainId();
 
-		if (vm.emitterAddress != _emitterAddress)
-			revert WrongEmitterAddress();
+		if (vm.emitterAddress != _emitterAddress) revert WrongEmitterAddress();
 
-		if (_claimedVaas[vm.hash])
-			revert VaaAlreadyClaimed();
+		if (_claimedVaas[vm.hash]) revert VaaAlreadyClaimed();
 
 		_claimedVaas[vm.hash] = true;
 
@@ -147,15 +148,13 @@ Ownable2StepUpgradeable
 		emit Minted(tokenId, evmRecipient);
 
 		if (msg.sender != evmRecipient) {
-			if (msg.value != _gasTokenAmountOnMint)
-				revert InvalidMsgValue();
+			if (msg.value != _gasTokenAmountOnMint) revert InvalidMsgValue();
 
 			payable(evmRecipient).transfer(msg.value);
 			_dustToken.safeTransferFrom(msg.sender, evmRecipient, _dustAmountOnMint);
 		}
-		else //if the recipient relays the message themselves then they must not include any gas token
-			if (msg.value != 0)
-				revert InvalidMsgValue();
+		//if the recipient relays the message themselves then they must not include any gas token
+		else if (msg.value != 0) revert InvalidMsgValue();
 	}
 
 	function parsePayload(
@@ -206,8 +205,9 @@ Ownable2StepUpgradeable
 
 	// ---- ERC165 ----
 
-	function supportsInterface(bytes4 interfaceId)
-	public view virtual override(ERC721EnumerableUpgradeable, ERC2981Upgradeable) returns (bool) {
+	function supportsInterface(
+		bytes4 interfaceId
+	) public view virtual override(ERC721Upgradeable, ERC2981Upgradeable) returns (bool) {
 		return super.supportsInterface(interfaceId);
 	}
 }

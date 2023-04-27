@@ -14,7 +14,7 @@ abstract contract ERC5058Upgradeable is ERC721Upgradeable, IERC5058Upgradeable {
 	mapping(uint256 => uint256) public lockedTokens;
 
 	// Mapping from token ID to lock approved address
-	mapping(uint256 => address) internal _lockApprovals;
+	mapping(uint256 => address) private _lockApprovals;
 
 	// Mapping from owner to lock operator approvals
 	mapping(address => mapping(address => bool)) private _lockOperatorApprovals;
