@@ -14,7 +14,7 @@ abstract contract ERC5058Upgradeable is ERC721Upgradeable, IERC5058Upgradeable {
 	mapping(uint256 => uint256) public lockedTokens;
 
 	// Mapping from token ID to lock approved address
-	mapping(uint256 => address) private _lockApprovals;
+	mapping(uint256 => address) internal _lockApprovals;
 
 	// Mapping from owner to lock operator approvals
 	mapping(address => mapping(address => bool)) private _lockOperatorApprovals;
@@ -218,8 +218,8 @@ abstract contract ERC5058Upgradeable is ERC721Upgradeable, IERC5058Upgradeable {
 		require(_exists(tokenId), "ERC5058: lock operator query for nonexistent token");
 		address owner = ERC721Upgradeable.ownerOf(tokenId);
 		return (spender == owner ||
-		isLockApprovedForAll(owner, spender) ||
-		getLockApproved(tokenId) == spender);
+			isLockApprovedForAll(owner, spender) ||
+			getLockApproved(tokenId) == spender);
 	}
 
 	/**
@@ -292,8 +292,8 @@ abstract contract ERC5058Upgradeable is ERC721Upgradeable, IERC5058Upgradeable {
 		bytes4 interfaceId
 	) public view virtual override(IERC165Upgradeable, ERC721Upgradeable) returns (bool) {
 		return
-		interfaceId == type(IERC5058Upgradeable).interfaceId ||
-		super.supportsInterface(interfaceId);
+			interfaceId == type(IERC5058Upgradeable).interfaceId ||
+			super.supportsInterface(interfaceId);
 	}
 
 	// @dev This empty reserved space is put in place to allow future versions to add new variables without shifting down
