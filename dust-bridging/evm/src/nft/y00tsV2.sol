@@ -33,8 +33,9 @@ contract y00tsV2 is y00ts, ERC5058Upgradeable {
 		uint256 tokenId,
 		uint256 batchSize
 	) internal virtual override(ERC721EnumerableUpgradeable, ERC5058Upgradeable) {
-		ERC721EnumerableUpgradeable._beforeTokenTransfer(from, to, tokenId, batchSize);
-		ERC5058Upgradeable._beforeTokenTransfer(from, to, tokenId, batchSize);
+		ERC721Upgradeable._beforeTokenTransfer(from, to, tokenId, batchSize);
+		// Copied from ERC5058 implementation to abolish the enumeration state operations.
+		require(!isLocked(tokenId), "ERC5058: token transfer while locked");
 	}
 
 	function _afterTokenTransfer(
@@ -44,7 +45,9 @@ contract y00tsV2 is y00ts, ERC5058Upgradeable {
 		uint256 batchSize
 	) internal virtual override(ERC721Upgradeable, ERC5058Upgradeable) {
 		ERC721Upgradeable._afterTokenTransfer(from, to, tokenId, batchSize);
-		ERC5058Upgradeable._afterTokenTransfer(from, to, tokenId, batchSize);
+		// Copied from ERC5058 implementation to abolish the enumeration state operations.
+		// Revoke the lock approval from the previous owner on the current token.
+		delete _lockApprovals[tokenId];
 	}
 
 	function _burn(
