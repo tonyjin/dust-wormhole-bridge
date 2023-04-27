@@ -5,7 +5,6 @@ import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC72
 import {y00ts} from "./y00ts.sol";
 import {BaseWormholeBridgedNft} from "./BaseWormholeBridgedNft.sol";
 import {ERC5058Upgradeable} from "ERC5058/ERC5058Upgradeable.sol";
-import {ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
