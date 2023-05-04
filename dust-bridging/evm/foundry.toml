@@ -19,6 +19,7 @@ remappings = [
     "wormhole-solidity/=modules/wormhole",
     "opensea/=modules/opensea",
     "ERC5058/=modules/ERC5058",
+    "ERC5192/=modules/ERC5192",
 ]
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
