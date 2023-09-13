@@ -3,7 +3,7 @@
 all: build
 
 test: build
-	forge test -vvvv
+	forge test -vv
 
 build: dependencies
 	forge build

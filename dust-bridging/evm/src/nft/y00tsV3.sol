@@ -4,34 +4,32 @@ pragma solidity 0.8.19;
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {IERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
 import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import {ERC2981Upgradeable} from "@openzeppelin/contracts-upgradeable/token/common/ERC2981Upgradeable.sol";
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {BytesLib} from "wormhole-solidity/BytesLib.sol";
-import {DummyERC721EnumerableUpgradeable} from "./DummyERC721EnumerableUpgradeable.sol";
+import {ERC5058Upgradeable} from "ERC5058/ERC5058Upgradeable.sol";
+import {IERC5192} from "ERC5192/IERC5192.sol";
 
 /**
  * @title  DeBridge
  * @notice ERC721 that mints tokens based on VAAs.
  */
-contract y00ts is
+contract y00tsV3 is
+	ERC5058Upgradeable,
+	IERC5192,
 	UUPSUpgradeable,
-	DummyERC721EnumerableUpgradeable,
 	ERC2981Upgradeable,
 	Ownable2StepUpgradeable
 {
 	using BytesLib for bytes;
 	using SafeERC20 for IERC20;
 
-	// Wormhole chain id that valid vaas must have -- must be Solana.
-	uint16 constant SOURCE_CHAIN_ID = 1;
-	// Finality for outbound messages from Polygon. An upgrade is required
-	// to update this value.
-	// - 201 is finalized
-	// - 200 is not finalized
-	uint8 constant FINALITY = 201;
+	// Wormhole chain id that valid vaas must have -- must be Polygon.
+	uint16 constant SOURCE_CHAIN_ID = 6;
+	uint256 private constant MAX_EXPIRE_TIME =
+		0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
 
 	// -- immutable members (baked into the code by the constructor of the logic contract)
 
@@ -61,9 +59,6 @@ contract y00ts is
 	error BaseUriEmpty();
 	error BaseUriTooLong();
 	error InvalidMsgValue();
-	error Deprecated();
-	error BurnNotApproved();
-	error RecipientZeroAddress();
 
 	event Minted(uint256 indexed tokenId, address indexed receiver);
 
@@ -114,27 +109,6 @@ contract y00ts is
 		_setDefaultRoyalty(royaltyReceiver, royaltyFeeNumerator);
 	}
 
-	function burnAndSend(uint256 tokenId, address recipient) public payable {
-		// `getApproved` checks if the token exists, and if the caller is approved
-		// to burn it.
-		if (getApproved(tokenId) != address(this)) {
-			revert BurnNotApproved();
-		}
-
-		if (recipient == address(0)) {
-			revert RecipientZeroAddress();
-		}
-
-		_burn(tokenId);
-
-		//send wormhole message
-		_wormhole.publishMessage{value: msg.value}(
-			0, //nonce
-			abi.encodePacked(uint16(tokenId), recipient), //payload
-			FINALITY
-		);
-	}
-
 	function updateAmountsOnMint(
 		uint256 dustAmountOnMint,
 		uint256 gasTokenAmountOnMint
@@ -153,10 +127,38 @@ contract y00ts is
 	}
 
 	/**
-	 * This method is deprecated.
+	 * Mints an NFT based on an valid VAA and kickstarts the recipient's wallet with
+	 *   gas tokens (ETH or MATIC) and DUST (taken from msg.sender unless msg.sender is recipient).
+	 * TokenId and recipient address are taken from the VAA.
+	 * The Wormhole message must have been published by the DeBridge instance of the
+	 *   NFT collection with the specified emitter on Solana (chainId = 1).
 	 */
 	function receiveAndMint(bytes calldata vaa) external payable {
-		revert Deprecated();
+		(IWormhole.VM memory vm, bool valid, string memory reason) = _wormhole.parseAndVerifyVM(
+			vaa
+		);
+		if (!valid) revert FailedVaaParseAndVerification(reason);
+
+		if (vm.emitterChainId != SOURCE_CHAIN_ID) revert WrongEmitterChainId();
+
+		if (vm.emitterAddress != _emitterAddress) revert WrongEmitterAddress();
+
+		if (_claimedVaas[vm.hash]) revert VaaAlreadyClaimed();
+
+		_claimedVaas[vm.hash] = true;
+
+		(uint256 tokenId, address evmRecipient) = parsePayload(vm.payload);
+		_safeMint(evmRecipient, tokenId);
+		emit Minted(tokenId, evmRecipient);
+
+		if (msg.sender != evmRecipient) {
+			if (msg.value != _gasTokenAmountOnMint) revert InvalidMsgValue();
+
+			payable(evmRecipient).transfer(msg.value);
+			_dustToken.safeTransferFrom(msg.sender, evmRecipient, _dustAmountOnMint);
+		}
+		//if the recipient relays the message themselves then they must not include any gas token
+		else if (msg.value != 0) revert InvalidMsgValue();
 	}
 
 	function parsePayload(
@@ -167,6 +169,51 @@ contract y00ts is
 
 		tokenId = message.toUint16(0);
 		evmRecipient = message.toAddress(BytesLib.uint16Size);
+	}
+
+	function locked(uint256 tokenId) external view override returns (bool) {
+		return isLocked(tokenId);
+	}
+
+	// ---- ERC5058 ----
+
+	function _beforeTokenTransfer(
+		address from,
+		address to,
+		uint256 tokenId,
+		uint256 batchSize
+	) internal virtual override(ERC5058Upgradeable) {
+		ERC5058Upgradeable._beforeTokenTransfer(from, to, tokenId, batchSize);
+	}
+
+	function _afterTokenTransfer(
+		address from,
+		address to,
+		uint256 tokenId,
+		uint256 batchSize
+	) internal virtual override(ERC5058Upgradeable) {
+		ERC5058Upgradeable._afterTokenTransfer(from, to, tokenId, batchSize);
+	}
+
+	function _beforeTokenLock(
+		address operator,
+		address owner,
+		uint256 tokenId,
+		uint256 expired
+	) internal virtual override {
+		super._beforeTokenLock(operator, owner, tokenId, expired);
+		require(expired == 0 || expired == MAX_EXPIRE_TIME, "Auto expiration is not supported.");
+
+		// Emit events for ERC5192
+		if (expired != 0) {
+			emit Locked(tokenId);
+		} else {
+			emit Unlocked(tokenId);
+		}
+	}
+
+	function _burn(uint256 tokenId) internal virtual override(ERC5058Upgradeable) {
+		ERC5058Upgradeable._burn(tokenId);
 	}
 
 	// ---- ERC721 ----
@@ -181,6 +228,17 @@ contract y00ts is
 		assembly ("memory-safe") {
 			mstore(add(baseUri, 32), tmp)
 		}
+	}
+
+	// ---- ERC165 ----
+
+	function supportsInterface(
+		bytes4 interfaceId
+	) public view virtual override(ERC5058Upgradeable, ERC2981Upgradeable) returns (bool) {
+		return
+			interfaceId == type(IERC5192).interfaceId ||
+			ERC5058Upgradeable.supportsInterface(interfaceId) ||
+			super.supportsInterface(interfaceId);
 	}
 
 	// ---- ERC2981 ----
@@ -203,13 +261,5 @@ contract y00ts is
 
 	function resetTokenRoyalty(uint256 tokenId) external onlyOwner {
 		_resetTokenRoyalty(tokenId);
-	}
-
-	// ---- ERC165 ----
-
-	function supportsInterface(
-		bytes4 interfaceId
-	) public view virtual override(ERC721Upgradeable, ERC2981Upgradeable) returns (bool) {
-		return super.supportsInterface(interfaceId);
 	}
 }
