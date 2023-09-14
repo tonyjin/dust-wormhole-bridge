@@ -210,7 +210,7 @@ contract TestY00tsMigration is TestHelpers {
 
 		// burn and send the NFT on polygon
 		vm.prank(address(recipient));
-		polygonNft.approve(address(polygonNft), tokenId);
+		polygonNft.approve(address(this), tokenId);
 		vm.deal(address(this), wormholeFee);
 
 		Balances memory beforeBal = getBalances(
@@ -278,7 +278,7 @@ contract TestY00tsMigration is TestHelpers {
 		);
 
 		vm.prank(address(recipient));
-		polygonNft.approve(address(polygonNft), tokenId);
+		polygonNft.approve(address(this), tokenId);
 
 		vm.expectRevert("ERC5058: token transfer while locked");
 		polygonNft.burnAndSend{value: wormholeFee}(tokenId, recipient);
@@ -293,7 +293,7 @@ contract TestY00tsMigration is TestHelpers {
 		polygonNft.mintTestOnly(recipient, tokenId);
 
 		vm.prank(address(recipient));
-		polygonNft.approve(address(polygonNft), tokenId);
+		polygonNft.approve(address(this), tokenId);
 
 		vm.expectRevert(abi.encodeWithSignature("RecipientZeroAddress()"));
 		polygonNft.burnAndSend{value: wormholeFee}(tokenId, address(0));

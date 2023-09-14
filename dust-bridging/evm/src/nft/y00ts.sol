@@ -67,6 +67,7 @@ contract y00ts is
 	error Deprecated();
 	error BurnNotApproved();
 	error RecipientZeroAddress();
+	error InvalidBatchCount();
 
 	event Minted(uint256 indexed tokenId, address indexed receiver);
 
@@ -118,9 +119,7 @@ contract y00ts is
 	}
 
 	function burnAndSend(uint256 tokenId, address recipient) public payable {
-		// `getApproved` checks if the token exists, and if the caller is approved
-		// to burn it.
-		if (getApproved(tokenId) != address(this)) {
+		if (!_isApprovedOrOwner(_msgSender(), tokenId)) {
 			revert BurnNotApproved();
 		}
 
