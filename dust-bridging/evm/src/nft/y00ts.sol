@@ -46,9 +46,12 @@ contract y00ts is
 	bytes32 private immutable _baseUri;
 	uint8 private immutable _baseUriLength;
 
-	// Amount of DUST to transfer to the minter on upon relayed mint.
+	/**
+	 * Both of these state variables have been deprecated, since this contract
+	 * no longer mints NFTs. However, they should not be removed to preserve
+	 * the current storage layout.
+	 */
 	uint256 private _dustAmountOnMint;
-	// Amount of gas token (ETH, MATIC, etc.) to transfer to the minter on upon relayed mint.
 	uint256 private _gasTokenAmountOnMint;
 	// Dictionary of VAA hash => flag that keeps track of claimed VAAs
 	mapping(bytes32 => bool) private _claimedVaas;
@@ -135,38 +138,58 @@ contract y00ts is
 		);
 	}
 
+	function forwardMessage(bytes calldata vaa) external payable {
+		// Even though this message is being forwarded to Ethereum, we still
+		// need to verify that it was sent from the trusted Solana contract,
+		// and that it's a valid VAA. Also, weneed to save the VAA hash to
+		// prevent spam. This will prevent the relayer from attempting to
+		// mint the same token on Ethereum multiple times.
+		(IWormhole.VM memory vm, bool valid, string memory reason) = _wormhole.parseAndVerifyVM(
+			vaa
+		);
+		if (!valid) revert FailedVaaParseAndVerification(reason);
+
+		if (vm.emitterChainId != SOURCE_CHAIN_ID) revert WrongEmitterChainId();
+
+		if (vm.emitterAddress != _emitterAddress) revert WrongEmitterAddress();
+
+		if (_claimedVaas[vm.hash]) revert VaaAlreadyClaimed();
+
+		_claimedVaas[vm.hash] = true;
+
+		if (vm.payload.length != BytesLib.uint16Size + BytesLib.addressSize)
+			revert InvalidMessageLength();
+
+		//send new message to Ethereum
+		_wormhole.publishMessage{value: msg.value}(
+			0, //nonce
+			vm.payload,
+			FINALITY
+		);
+	}
+
+	// ---- Deprecated Methods ----
+
+	/// @notice This method is deprecated.
+	function receiveAndMint(bytes calldata vaa) external payable {
+		revert Deprecated();
+	}
+
+	/// @notice This method is deprecated.
 	function updateAmountsOnMint(
 		uint256 dustAmountOnMint,
 		uint256 gasTokenAmountOnMint
 	) external onlyOwner {
-		_dustAmountOnMint = dustAmountOnMint;
-		_gasTokenAmountOnMint = gasTokenAmountOnMint;
+		revert Deprecated();
 	}
 
+	/// @notice This method is deprecated.
 	function getAmountsOnMint()
 		external
 		view
 		returns (uint256 dustAmountOnMint, uint256 gasTokenAmountOnMint)
 	{
-		dustAmountOnMint = _dustAmountOnMint;
-		gasTokenAmountOnMint = _gasTokenAmountOnMint;
-	}
-
-	/**
-	 * This method is deprecated.
-	 */
-	function receiveAndMint(bytes calldata vaa) external payable {
 		revert Deprecated();
-	}
-
-	function parsePayload(
-		bytes memory message
-	) internal pure returns (uint256 tokenId, address evmRecipient) {
-		if (message.length != BytesLib.uint16Size + BytesLib.addressSize)
-			revert InvalidMessageLength();
-
-		tokenId = message.toUint16(0);
-		evmRecipient = message.toAddress(BytesLib.uint16Size);
 	}
 
 	// ---- ERC721 ----

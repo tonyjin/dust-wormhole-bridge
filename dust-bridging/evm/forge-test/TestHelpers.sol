@@ -27,6 +27,10 @@ contract TestY00tsV2 is y00tsV2 {
 		_safeMint(recipient, uint256(tokenId));
 	}
 
+	function exists(uint tokenId) external view returns (bool) {
+		return _exists(tokenId);
+	}
+
 	function getImplementation() public view returns (address) {
 		return _getImplementation();
 	}
@@ -46,6 +50,10 @@ contract TestY00tsV3 is y00tsV3 {
 
 	function mintTestOnly(address recipient, uint16 tokenId) public {
 		_safeMint(recipient, uint256(tokenId));
+	}
+
+	function exists(uint tokenId) external view returns (bool) {
+		return _exists(tokenId);
 	}
 
 	function getImplementation() external view returns (address) {
@@ -132,7 +140,7 @@ contract TestHelpers is Test {
 		address evmRecipient,
 		uint16 emitterChainId,
 		bytes32 emitterAddress
-	) public returns (bytes memory) {
+	) internal returns (bytes memory) {
 		IWormhole.VM memory vaa = IWormhole.VM({
 			version: 1,
 			timestamp: 0,
@@ -142,6 +150,29 @@ contract TestHelpers is Test {
 			sequence: 0,
 			consistencyLevel: 1,
 			payload: abi.encodePacked(tokenId, evmRecipient),
+			guardianSetIndex: deployed.wormhole.getCurrentGuardianSetIndex(),
+			signatures: new IWormhole.Signature[](0),
+			hash: 0x00
+		});
+
+		return deployed.wormholeSimulator.encodeAndSignMessage(vaa);
+	}
+
+	function craftValidVaa(
+		Deployed memory deployed,
+		uint16 emitterChainId,
+		bytes32 emitterAddress,
+		bytes memory payload
+	) internal returns (bytes memory) {
+		IWormhole.VM memory vaa = IWormhole.VM({
+			version: 1,
+			timestamp: 0,
+			nonce: 0,
+			emitterChainId: emitterChainId,
+			emitterAddress: emitterAddress,
+			sequence: 0,
+			consistencyLevel: 1,
+			payload: payload,
 			guardianSetIndex: deployed.wormhole.getCurrentGuardianSetIndex(),
 			signatures: new IWormhole.Signature[](0),
 			hash: 0x00

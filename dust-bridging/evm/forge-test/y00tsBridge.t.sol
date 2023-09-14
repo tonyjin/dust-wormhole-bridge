@@ -196,13 +196,8 @@ contract TestY00tsMigration is TestHelpers {
 			polygon.acceptedEmitter
 		);
 
-		(uint256 dustAmount, uint256 gasTokenAmount) = polygonNft.getAmountsOnMint();
-		vm.deal(address(this), gasTokenAmount);
-
-		polygon.dustToken.approve(address(polygonNft), dustAmount);
-
 		vm.expectRevert(abi.encodeWithSignature("Deprecated()"));
-		polygonNft.receiveAndMint{value: gasTokenAmount}(mintVaa);
+		polygonNft.receiveAndMint(mintVaa);
 	}
 
 	function testBurnAndSendOnPolygon(uint16 tokenId) public {
@@ -244,6 +239,7 @@ contract TestY00tsMigration is TestHelpers {
 			address(this)
 		);
 
+		assertTrue(!polygonNft.exists(tokenId));
 		assertBalanceCheckOutbound(beforeBal, afterBal, 1);
 	}
 
@@ -336,6 +332,7 @@ contract TestY00tsMigration is TestHelpers {
 			address(this)
 		);
 
+		assertEq(ethereumNft.ownerOf(tokenId), fromWormholeFormat(userAddress));
 		assertBalanceCheckInbound(beforeBal, afterBal, dustAmount, gasTokenAmount, 1);
 	}
 
@@ -427,5 +424,125 @@ contract TestY00tsMigration is TestHelpers {
 			bytes(uri),
 			bytes(abi.encodePacked(baseUri, Strings.toString(tokenId), string(".json")))
 		);
+	}
+
+	function testForwardMessage(uint16 tokenId) public {
+		vm.assume(tokenId < maxY00tsSupply);
+
+		// craft a VAA sent from the Solana contract to Polygon
+		bytes memory forwardVaa = craftValidVaa(
+			polygon,
+			tokenId,
+			fromWormholeFormat(userAddress),
+			solanaWormholeChain, // emitter chainId
+			polygon.acceptedEmitter
+		);
+
+		// forward the message from Polygon to Ethereum
+		vm.recordLogs();
+
+		vm.deal(address(this), wormholeFee);
+		polygonNft.forwardMessage{value: wormholeFee}(forwardVaa);
+
+		// Fetch the emitted VM and sign the message. The Wormhole message is
+		// the first emitted log in this scenario.
+		Vm.Log[] memory entries = vm.getRecordedLogs();
+		bytes memory mintVaa = polygon.wormholeSimulator.fetchSignedMessageFromLogs(
+			entries[0],
+			polygonWormholeChain, // emitter chain
+			address(polygonNft) // emitter address
+		);
+
+		// now receive and mint on Ethereum
+		(uint256 dustAmount, uint256 gasTokenAmount) = ethereumNft.getAmountsOnMint();
+		vm.deal(address(this), gasTokenAmount);
+
+		// We need to balance check after dealing the dust token.
+		Balances memory beforeBal = getBalances(
+			ethereum,
+			ethereumNft,
+			fromWormholeFormat(userAddress),
+			address(this)
+		);
+
+		ethereum.dustToken.approve(address(ethereumNft), dustAmount);
+		ethereumNft.receiveAndMint{value: gasTokenAmount}(mintVaa);
+
+		Balances memory afterBal = getBalances(
+			ethereum,
+			ethereumNft,
+			fromWormholeFormat(userAddress),
+			address(this)
+		);
+
+		assertEq(ethereumNft.ownerOf(tokenId), fromWormholeFormat(userAddress));
+		assertBalanceCheckInbound(beforeBal, afterBal, dustAmount, gasTokenAmount, 1);
+	}
+
+	function testCannotForwardMessageWrongEmitterAddress() public {
+		uint16 tokenId = 5;
+
+		// craft a VAA sent from the Solana contract to Polygon
+		bytes memory forwardVaa = craftValidVaa(
+			polygon,
+			tokenId,
+			fromWormholeFormat(userAddress),
+			solanaWormholeChain,
+			toWormholeFormat(makeAddr("badEmitterAddress"))
+		);
+
+		vm.expectRevert(abi.encodeWithSignature("WrongEmitterAddress()"));
+		polygonNft.forwardMessage{value: wormholeFee}(forwardVaa);
+	}
+
+	function testCannotForwardMessageWrongEmitterChainId() public {
+		uint16 tokenId = 5;
+
+		// craft a VAA sent from the Solana contract to Polygon
+		bytes memory forwardVaa = craftValidVaa(
+			polygon,
+			tokenId,
+			fromWormholeFormat(userAddress),
+			ethereumWormholeChain, // bad emitter chainId
+			polygon.acceptedEmitter
+		);
+
+		vm.expectRevert(abi.encodeWithSignature("WrongEmitterChainId()"));
+		polygonNft.forwardMessage{value: wormholeFee}(forwardVaa);
+	}
+
+	function testCannotForwardMessageInvalidMessageLength() public {
+		uint16 tokenId = 5;
+
+		// craft a VAA sent from the Solana contract to Polygon
+		bytes memory forwardVaa = craftValidVaa(
+			polygon,
+			solanaWormholeChain,
+			polygon.acceptedEmitter,
+			hex"deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef" // Invalid payload
+		);
+
+		vm.expectRevert(abi.encodeWithSignature("InvalidMessageLength()"));
+		polygonNft.forwardMessage{value: wormholeFee}(forwardVaa);
+	}
+
+	function testCannotForwardMessageAgain() public {
+		uint16 tokenId = 5;
+
+		// craft a VAA sent from the Solana contract to Polygon
+		bytes memory forwardVaa = craftValidVaa(
+			polygon,
+			tokenId,
+			fromWormholeFormat(userAddress),
+			solanaWormholeChain, // emitter chainId
+			polygon.acceptedEmitter
+		);
+
+		vm.deal(address(this), wormholeFee);
+		polygonNft.forwardMessage{value: wormholeFee}(forwardVaa);
+
+		vm.deal(address(this), wormholeFee);
+		vm.expectRevert(); // forge is not reverting with data here (bug)
+		polygonNft.forwardMessage{value: wormholeFee}(forwardVaa);
 	}
 }
