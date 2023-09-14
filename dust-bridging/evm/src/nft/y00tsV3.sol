@@ -61,6 +61,7 @@ contract y00tsV3 is
 	error InvalidMsgValue();
 
 	event Minted(uint256 indexed tokenId, address indexed receiver);
+	event BatchMinted(uint256[] indexed tokenIds, address indexed receiver);
 
 	//constructor for the logic(!) contract
 	constructor(
@@ -134,23 +135,35 @@ contract y00tsV3 is
 	 *   NFT collection with the specified emitter on Solana (chainId = 1).
 	 */
 	function receiveAndMint(bytes calldata vaa) external payable {
-		(IWormhole.VM memory vm, bool valid, string memory reason) = _wormhole.parseAndVerifyVM(
-			vaa
-		);
-		if (!valid) revert FailedVaaParseAndVerification(reason);
-
-		if (vm.emitterChainId != SOURCE_CHAIN_ID) revert WrongEmitterChainId();
-
-		if (vm.emitterAddress != _emitterAddress) revert WrongEmitterAddress();
-
-		if (_claimedVaas[vm.hash]) revert VaaAlreadyClaimed();
-
-		_claimedVaas[vm.hash] = true;
+		IWormhole.VM memory vm = verifyMintMessage(vaa);
 
 		(uint256 tokenId, address evmRecipient) = parsePayload(vm.payload);
 		_safeMint(evmRecipient, tokenId);
 		emit Minted(tokenId, evmRecipient);
 
+		handleGasDropOff(evmRecipient);
+	}
+
+	function receiveAndMintBatch(bytes calldata vaa) external payable {
+		IWormhole.VM memory vm = verifyMintMessage(vaa);
+
+		(uint256 tokenCount, uint256[] memory tokenIds, address evmRecipient) = parseBatchPayload(
+			vm.payload
+		);
+
+		for (uint256 i = 0; i < tokenCount; ) {
+			_safeMint(evmRecipient, tokenIds[i]);
+
+			unchecked {
+				i += 1;
+			}
+		}
+		emit BatchMinted(tokenIds, evmRecipient);
+
+		handleGasDropOff(evmRecipient);
+	}
+
+	function handleGasDropOff(address evmRecipient) internal {
 		if (msg.sender != evmRecipient) {
 			if (msg.value != _gasTokenAmountOnMint) revert InvalidMsgValue();
 
@@ -169,6 +182,52 @@ contract y00tsV3 is
 
 		tokenId = message.toUint16(0);
 		evmRecipient = message.toAddress(BytesLib.uint16Size);
+	}
+
+	function parseBatchPayload(
+		bytes memory message
+	) internal pure returns (uint256, uint256[] memory, address) {
+		uint256 messageLength = message.length;
+		uint256 endTokenIndex = messageLength - BytesLib.addressSize;
+		uint256 batchSize = endTokenIndex / BytesLib.uint16Size;
+
+		if (
+			messageLength <= BytesLib.uint16Size + BytesLib.addressSize ||
+			endTokenIndex % BytesLib.uint16Size != 0
+		) {
+			revert InvalidMessageLength();
+		}
+
+		//parse the recipient
+		address evmRecipient = message.toAddress(endTokenIndex);
+
+		//parse the tokenIds
+		uint256[] memory tokenIds = new uint256[](batchSize);
+		for (uint256 i = 0; i < batchSize; ) {
+			unchecked {
+				tokenIds[i] = message.toUint16(i * BytesLib.uint16Size);
+				i += 1;
+			}
+		}
+
+		return (batchSize, tokenIds, evmRecipient);
+	}
+
+	function verifyMintMessage(bytes calldata vaa) internal returns (IWormhole.VM memory) {
+		(IWormhole.VM memory vm, bool valid, string memory reason) = _wormhole.parseAndVerifyVM(
+			vaa
+		);
+		if (!valid) revert FailedVaaParseAndVerification(reason);
+
+		if (vm.emitterChainId != SOURCE_CHAIN_ID) revert WrongEmitterChainId();
+
+		if (vm.emitterAddress != _emitterAddress) revert WrongEmitterAddress();
+
+		if (_claimedVaas[vm.hash]) revert VaaAlreadyClaimed();
+
+		_claimedVaas[vm.hash] = true;
+
+		return vm;
 	}
 
 	function locked(uint256 tokenId) external view override returns (bool) {

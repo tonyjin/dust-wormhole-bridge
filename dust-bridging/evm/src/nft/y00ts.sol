@@ -32,6 +32,7 @@ contract y00ts is
 	// - 201 is finalized
 	// - 200 is not finalized
 	uint8 constant FINALITY = 201;
+	uint16 constant MAX_BATCH_SIZE = 30;
 
 	// -- immutable members (baked into the code by the constructor of the logic contract)
 
@@ -68,6 +69,7 @@ contract y00ts is
 	error BurnNotApproved();
 	error RecipientZeroAddress();
 	error InvalidBatchCount();
+	error NotAscendingOrDuplicated();
 
 	event Minted(uint256 indexed tokenId, address indexed receiver);
 
@@ -118,7 +120,7 @@ contract y00ts is
 		_setDefaultRoyalty(royaltyReceiver, royaltyFeeNumerator);
 	}
 
-	function burnAndSend(uint256 tokenId, address recipient) public payable {
+	function burnAndSend(uint256 tokenId, address recipient) external payable {
 		if (!_isApprovedOrOwner(_msgSender(), tokenId)) {
 			revert BurnNotApproved();
 		}
@@ -137,10 +139,54 @@ contract y00ts is
 		);
 	}
 
+	function burnAndSendBatch(uint256[] calldata tokenIds, address recipient) external payable {
+		uint256 tokenCount = tokenIds.length;
+
+		if (tokenCount < 2 || tokenCount > MAX_BATCH_SIZE) {
+			revert InvalidBatchCount();
+		}
+
+		if (recipient == address(0)) {
+			revert RecipientZeroAddress();
+		}
+
+		uint256 lastTokenId;
+		bytes memory payload;
+		for (uint256 i = 0; i < tokenCount; ) {
+			uint256 tokenId = tokenIds[i];
+
+			//tokenIds must be ascending and unique
+			if (i != 0 && tokenId <= lastTokenId) {
+				revert NotAscendingOrDuplicated();
+			}
+
+			if (!_isApprovedOrOwner(_msgSender(), tokenId)) {
+				revert BurnNotApproved();
+			}
+
+			_burn(tokenId);
+
+			//add tokenId to the message payload
+			payload = abi.encodePacked(payload, uint16(tokenId));
+
+			unchecked {
+				lastTokenId = tokenId;
+				i += 1;
+			}
+		}
+
+		//append the recipient to the payload and send the message
+		_wormhole.publishMessage{value: msg.value}(
+			0, //nonce
+			abi.encodePacked(payload, recipient),
+			FINALITY
+		);
+	}
+
 	function forwardMessage(bytes calldata vaa) external payable {
 		// Even though this message is being forwarded to Ethereum, we still
 		// need to verify that it was sent from the trusted Solana contract,
-		// and that it's a valid VAA. Also, weneed to save the VAA hash to
+		// and that it's a valid VAA. Also, we need to save the VAA hash to
 		// prevent spam. This will prevent the relayer from attempting to
 		// mint the same token on Ethereum multiple times.
 		(IWormhole.VM memory vm, bool valid, string memory reason) = _wormhole.parseAndVerifyVM(

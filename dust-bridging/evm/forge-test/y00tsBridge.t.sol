@@ -200,6 +200,10 @@ contract TestY00tsMigration is TestHelpers {
 		polygonNft.receiveAndMint(mintVaa);
 	}
 
+	/**
+	 * Send And Mint Tests
+	 */
+
 	function testBurnAndSendOnPolygon(uint16 tokenId) public {
 		vm.assume(tokenId < maxY00tsSupply);
 
@@ -298,6 +302,10 @@ contract TestY00tsMigration is TestHelpers {
 		vm.expectRevert(abi.encodeWithSignature("RecipientZeroAddress()"));
 		polygonNft.burnAndSend{value: wormholeFee}(tokenId, address(0));
 	}
+
+	/**
+	 * Receive and Mint Tests
+	 */
 
 	function testReceiveAndMintOnEthereum(uint16 tokenId) public {
 		vm.assume(tokenId < maxY00tsSupply);
@@ -426,6 +434,10 @@ contract TestY00tsMigration is TestHelpers {
 		);
 	}
 
+	/**
+	 * Forward Message Tests
+	 */
+
 	function testForwardMessage(uint16 tokenId) public {
 		vm.assume(tokenId < maxY00tsSupply);
 
@@ -544,5 +556,453 @@ contract TestY00tsMigration is TestHelpers {
 		vm.deal(address(this), wormholeFee);
 		vm.expectRevert(); // forge is not reverting with data here (bug)
 		polygonNft.forwardMessage{value: wormholeFee}(forwardVaa);
+	}
+
+	/**
+	 * Sending Batch Tests
+	 */
+
+	function testBurnAndSendBatch(uint256 tokenCount, uint256 start) public {
+		vm.assume(tokenCount > 1 && tokenCount <= polygonNft.getMaxBatchSize());
+		vm.assume(start < maxY00tsSupply - tokenCount);
+
+		address spender = makeAddr("spender");
+		address recipient = fromWormholeFormat(userAddress);
+
+		// create batch of tokenIds
+		uint256[] memory tokenIds = createBatchAndMint(polygonNft, spender, tokenCount, start);
+		assertEq(polygonNft.balanceOf(spender), tokenCount);
+
+		vm.recordLogs();
+
+		// burn and send batch
+		vm.deal(spender, wormholeFee);
+		vm.prank(spender);
+		polygonNft.burnAndSendBatch{value: wormholeFee}(tokenIds, recipient);
+
+		// confirm spender's balance is zero and all nfts were burned
+		assertEq(polygonNft.balanceOf(spender), 0);
+		for (uint256 i = 0; i < tokenCount; i++) {
+			assertTrue(!polygonNft.exists(tokenIds[i]));
+		}
+
+		// Fetch the emitted VM and sign the message. The Wormhole message is
+		// the last emitted log in this scenario. There are two events
+		// per token that is burned.
+		IWormhole.VM memory vm_ = polygon.wormholeSimulator.parseVMFromLogs(
+			vm.getRecordedLogs()[tokenCount * 2]
+		);
+
+		// verify the message payload.
+		uint256 expectedMessagelength = tokenCount * 2 + 20;
+		assertEq(vm_.payload.length, expectedMessagelength);
+		assertEq(vm_.payload.toAddress(expectedMessagelength - 20), recipient);
+		for (uint256 i = 0; i < tokenCount; i++) {
+			assertEq(vm_.payload.toUint16(i * 2), tokenIds[i]);
+		}
+	}
+
+	function testCannotBurnAndSendBatchZeroTokens() public {
+		uint256 tokenCount = 0;
+		uint256 start = 0;
+
+		address spender = makeAddr("spender");
+		address recipient = fromWormholeFormat(userAddress);
+
+		// create batch of tokenIds
+		uint256[] memory tokenIds = createBatchAndMint(polygonNft, spender, tokenCount, start);
+
+		// burn and send batch
+		vm.deal(spender, wormholeFee);
+		vm.prank(spender);
+
+		vm.expectRevert(abi.encodeWithSignature("InvalidBatchCount()"));
+		polygonNft.burnAndSendBatch{value: wormholeFee}(tokenIds, recipient);
+	}
+
+	function testCannotBurnAndSendBatchOneToken() public {
+		uint256 tokenCount = 1;
+		uint256 start = 0;
+
+		address spender = makeAddr("spender");
+		address recipient = fromWormholeFormat(userAddress);
+
+		// create batch of tokenIds
+		uint256[] memory tokenIds = createBatchAndMint(polygonNft, spender, tokenCount, start);
+
+		// burn and send batch
+		vm.deal(spender, wormholeFee);
+		vm.prank(spender);
+
+		vm.expectRevert(abi.encodeWithSignature("InvalidBatchCount()"));
+		polygonNft.burnAndSendBatch{value: wormholeFee}(tokenIds, recipient);
+	}
+
+	function testCannotBurnAndSendBatchTooManyTokens() public {
+		uint256 tokenCount = polygonNft.getMaxBatchSize() + 1;
+		uint256 start = 0;
+
+		address spender = makeAddr("spender");
+		address recipient = fromWormholeFormat(userAddress);
+
+		// create batch of tokenIds
+		uint256[] memory tokenIds = createBatchAndMint(polygonNft, spender, tokenCount, start);
+
+		// burn and send batch
+		vm.deal(spender, wormholeFee);
+		vm.prank(spender);
+
+		vm.expectRevert(abi.encodeWithSignature("InvalidBatchCount()"));
+		polygonNft.burnAndSendBatch{value: wormholeFee}(tokenIds, recipient);
+	}
+
+	function testCannotBurnAndSendBatchRecipientZeroAddress() public {
+		uint256 tokenCount = 5;
+		uint256 start = 0;
+
+		address spender = makeAddr("spender");
+		address recipient = address(0);
+
+		// create batch of tokenIds
+		uint256[] memory tokenIds = createBatchAndMint(polygonNft, spender, tokenCount, start);
+
+		// burn and send batch
+		vm.deal(spender, wormholeFee);
+		vm.prank(spender);
+
+		vm.expectRevert(abi.encodeWithSignature("RecipientZeroAddress()"));
+		polygonNft.burnAndSendBatch{value: wormholeFee}(tokenIds, recipient);
+	}
+
+	function testCannotBurnAndSendBatchDuplicateTokenIds() public {
+		uint256 tokenCount = 5;
+		uint256 start = 0;
+
+		address spender = makeAddr("spender");
+		address recipient = makeAddr("recipient");
+
+		// create batch of tokenIds
+		uint256[] memory tokenIds = createBatchAndMint(polygonNft, spender, tokenCount, start);
+
+		// add a duplicate token id
+		tokenIds[1] = tokenIds[0];
+
+		// burn and send batch
+		vm.deal(spender, wormholeFee);
+		vm.prank(spender);
+
+		vm.expectRevert(abi.encodeWithSignature("NotAscendingOrDuplicated()"));
+		polygonNft.burnAndSendBatch{value: wormholeFee}(tokenIds, recipient);
+	}
+
+	function testCannotBurnAndSendBatchNotAscendingTokenIds() public {
+		uint256 tokenCount = 25;
+		uint256 start = 0;
+
+		address spender = makeAddr("spender");
+		address recipient = makeAddr("recipient");
+
+		// create batch of tokenIds
+		uint256[] memory tokenIds = createBatchAndMint(polygonNft, spender, tokenCount, start);
+
+		// swap two token ids so the order is not ascending
+		uint256 placeholder = tokenIds[20];
+		tokenIds[20] = tokenIds[21];
+		tokenIds[21] = placeholder;
+
+		// burn and send batch
+		vm.deal(spender, wormholeFee);
+		vm.prank(spender);
+
+		vm.expectRevert(abi.encodeWithSignature("NotAscendingOrDuplicated()"));
+		polygonNft.burnAndSendBatch{value: wormholeFee}(tokenIds, recipient);
+	}
+
+	function testCannotBurnAndSendBatchBurnNotApproved() public {
+		uint256 tokenCount = 25;
+		uint256 start = 0;
+
+		address spender = makeAddr("spender");
+		address notOwner = makeAddr("notTheSpender");
+		address recipient = makeAddr("recipient");
+
+		// create batch of tokenIds
+		uint256[] memory tokenIds = createBatchAndMint(polygonNft, spender, tokenCount, start);
+
+		// burn and send batch
+		vm.deal(notOwner, wormholeFee);
+		vm.prank(notOwner);
+
+		vm.expectRevert(abi.encodeWithSignature("BurnNotApproved()"));
+		polygonNft.burnAndSendBatch{value: wormholeFee}(tokenIds, recipient);
+	}
+
+	function testCannotBurnAndSendBatchBurnNotApprovedSingleToken() public {
+		uint256 tokenCount = 25;
+		uint256 start = 0;
+
+		address spender = makeAddr("spender");
+		address notOwner = makeAddr("notTheSpender");
+		address recipient = makeAddr("recipient");
+
+		// create batch of tokenIds
+		uint256[] memory tokenIds = createBatchAndMint(polygonNft, spender, tokenCount, start);
+
+		// prank spender for approvals
+		vm.startPrank(spender);
+
+		// approve all tokens
+		for (uint256 i = 0; i < tokenCount - 1; i++) {
+			polygonNft.approve(notOwner, tokenIds[i]);
+		}
+
+		vm.stopPrank();
+
+		// burn and send batch
+		vm.deal(notOwner, wormholeFee);
+		vm.prank(notOwner);
+
+		vm.expectRevert(abi.encodeWithSignature("BurnNotApproved()"));
+		polygonNft.burnAndSendBatch{value: wormholeFee}(tokenIds, recipient);
+	}
+
+	/**
+	 * Receiving Batch Tests
+	 */
+
+	function testParseBatchPayload(uint256 tokenCount, uint256 start) public {
+		vm.assume(tokenCount > 1 && tokenCount <= polygonNft.getMaxBatchSize());
+		vm.assume(start < maxY00tsSupply - tokenCount);
+
+		address recipient = fromWormholeFormat(userAddress);
+
+		// create batch of tokenIds
+		uint256[] memory tokenIds = createBatchIds(tokenCount, start);
+
+		// parse the payload
+		(
+			uint256 parsedTokenCount,
+			uint256[] memory parsedTokenIds,
+			address parsedRecipient
+		) = ethereumNft._parseBatchPayload(createBatchPayload(tokenIds, recipient));
+
+		// validate parsed output
+		assertEq(parsedTokenCount, tokenCount);
+		assertEq(parsedRecipient, recipient);
+		for (uint256 i = 0; i < tokenCount; i++) {
+			assertEq(parsedTokenIds[i], tokenIds[i]);
+		}
+	}
+
+	function testReceiveAndMintBatch(uint256 tokenCount, uint256 start) public {
+		vm.assume(tokenCount > 1 && tokenCount <= polygonNft.getMaxBatchSize());
+		vm.assume(start < maxY00tsSupply - tokenCount);
+
+		address recipient = fromWormholeFormat(userAddress);
+
+		// create batch of tokenIds
+		uint256[] memory tokenIds = createBatchIds(tokenCount, start);
+
+		// create batch mint VAA
+		bytes memory batchVaa = craftValidVaa(
+			ethereum,
+			polygonWormholeChain,
+			ethereum.acceptedEmitter,
+			createBatchPayload(tokenIds, recipient)
+		);
+
+		(uint256 dustAmount, uint256 gasTokenAmount) = ethereumNft.getAmountsOnMint();
+		vm.deal(address(this), gasTokenAmount);
+
+		// We need to balance check after dealing the dust token.
+		Balances memory beforeBal = getBalances(
+			ethereum,
+			ethereumNft,
+			fromWormholeFormat(userAddress),
+			address(this)
+		);
+
+		ethereum.dustToken.approve(address(ethereumNft), dustAmount);
+		ethereumNft.receiveAndMintBatch{value: gasTokenAmount}(batchVaa);
+
+		Balances memory afterBal = getBalances(
+			ethereum,
+			ethereumNft,
+			fromWormholeFormat(userAddress),
+			address(this)
+		);
+
+		// Confirm recipient is now owner of each nft in the batch, and validate
+		// the gas drop off.
+		assertBalanceCheckInbound(beforeBal, afterBal, dustAmount, gasTokenAmount, tokenCount);
+		for (uint256 i = 0; i < tokenCount; i++) {
+			assertEq(ethereumNft.ownerOf(tokenIds[i]), recipient);
+		}
+	}
+
+	function testCannotReceiveAndMintBatchAgain() public {
+		uint256 tokenCount = 5;
+		uint256 start = 0;
+
+		// create batch mint VAA
+		bytes memory batchVaa = craftValidVaa(
+			ethereum,
+			polygonWormholeChain,
+			ethereum.acceptedEmitter,
+			createBatchPayload(createBatchIds(tokenCount, start), fromWormholeFormat(userAddress))
+		);
+
+		(uint256 dustAmount, uint256 gasTokenAmount) = ethereumNft.getAmountsOnMint();
+		vm.deal(address(this), gasTokenAmount);
+
+		ethereum.dustToken.approve(address(ethereumNft), dustAmount);
+		ethereumNft.receiveAndMintBatch{value: gasTokenAmount}(batchVaa);
+
+		// try to mint again
+		vm.deal(address(this), gasTokenAmount);
+		vm.expectRevert(); // forge is not reverting with data here (bug)
+		ethereumNft.receiveAndMintBatch{value: gasTokenAmount}(batchVaa);
+	}
+
+	function testCannotReceiveAndMintBatchWrongEmitterChainId() public {
+		uint256 tokenCount = 5;
+		uint256 start = 0;
+
+		// create batch mint VAA
+		bytes memory batchVaa = craftValidVaa(
+			ethereum,
+			solanaWormholeChain, // invalid chain Id
+			ethereum.acceptedEmitter,
+			createBatchPayload(createBatchIds(tokenCount, start), fromWormholeFormat(userAddress))
+		);
+
+		(uint256 dustAmount, uint256 gasTokenAmount) = ethereumNft.getAmountsOnMint();
+		vm.deal(address(this), gasTokenAmount);
+		ethereum.dustToken.approve(address(ethereumNft), dustAmount);
+
+		vm.expectRevert(abi.encodeWithSignature("WrongEmitterChainId()"));
+		ethereumNft.receiveAndMintBatch{value: gasTokenAmount}(batchVaa);
+	}
+
+	function testCannotReceiveAndMintBatchWrongEmitterAddress() public {
+		uint256 tokenCount = 5;
+		uint256 start = 0;
+
+		// create batch mint VAA
+		bytes memory batchVaa = craftValidVaa(
+			ethereum,
+			polygonWormholeChain,
+			toWormholeFormat(makeAddr("invalid emitter")), // invalid emitter address
+			createBatchPayload(createBatchIds(tokenCount, start), fromWormholeFormat(userAddress))
+		);
+
+		(uint256 dustAmount, uint256 gasTokenAmount) = ethereumNft.getAmountsOnMint();
+		vm.deal(address(this), gasTokenAmount);
+		ethereum.dustToken.approve(address(ethereumNft), dustAmount);
+
+		vm.expectRevert(abi.encodeWithSignature("WrongEmitterAddress()"));
+		ethereumNft.receiveAndMintBatch{value: gasTokenAmount}(batchVaa);
+	}
+
+	function testCannotReceiveAndMintBatchModuloNonzero() public {
+		uint256 tokenCount = 5;
+		uint256 start = 0;
+
+		bytes memory payload = createBatchPayload(
+			createBatchIds(tokenCount, start),
+			fromWormholeFormat(userAddress)
+		);
+
+		// create batch mint VAA, add an extra byte at the end
+		bytes memory batchVaa = craftValidVaa(
+			ethereum,
+			polygonWormholeChain,
+			ethereum.acceptedEmitter,
+			abi.encodePacked(payload, hex"69")
+		);
+
+		(uint256 dustAmount, uint256 gasTokenAmount) = ethereumNft.getAmountsOnMint();
+		vm.deal(address(this), gasTokenAmount);
+		ethereum.dustToken.approve(address(ethereumNft), dustAmount);
+
+		vm.expectRevert(abi.encodeWithSignature("InvalidMessageLength()"));
+		ethereumNft.receiveAndMintBatch{value: gasTokenAmount}(batchVaa);
+	}
+
+	function testCannotReceiveAndMintBatchNotEnoughBytes() public {
+		uint256 tokenCount = 1;
+		uint256 start = 0;
+
+		bytes memory payload = createBatchPayload(
+			createBatchIds(tokenCount, start),
+			fromWormholeFormat(userAddress)
+		);
+		require(payload.length == 22, "invalid payload");
+
+		// create batch mint VAA, but with only a single token ID
+		bytes memory batchVaa = craftValidVaa(
+			ethereum,
+			polygonWormholeChain,
+			ethereum.acceptedEmitter,
+			payload
+		);
+
+		(uint256 dustAmount, uint256 gasTokenAmount) = ethereumNft.getAmountsOnMint();
+		vm.deal(address(this), gasTokenAmount);
+		ethereum.dustToken.approve(address(ethereumNft), dustAmount);
+
+		vm.expectRevert(abi.encodeWithSignature("InvalidMessageLength()"));
+		ethereumNft.receiveAndMintBatch{value: gasTokenAmount}(batchVaa);
+	}
+
+	function testCannotReceiveAndMintBatchInvalidMessageValueSelfRedeem() public {
+		uint256 tokenCount = 5;
+		uint256 start = 0;
+
+		address recipient = fromWormholeFormat(userAddress);
+
+		bytes memory payload = createBatchPayload(createBatchIds(tokenCount, start), recipient);
+
+		// create batch mint VAA, but with only a single token ID
+		bytes memory batchVaa = craftValidVaa(
+			ethereum,
+			polygonWormholeChain,
+			ethereum.acceptedEmitter,
+			payload
+		);
+
+		(uint256 dustAmount, uint256 gasTokenAmount) = ethereumNft.getAmountsOnMint();
+		vm.deal(recipient, gasTokenAmount);
+		ethereum.dustToken.approve(address(ethereumNft), dustAmount);
+
+		// self redeem, but send value
+		vm.prank(recipient);
+		vm.expectRevert(abi.encodeWithSignature("InvalidMsgValue()"));
+		ethereumNft.receiveAndMintBatch{value: gasTokenAmount}(batchVaa);
+	}
+
+	function testCannotReceiveAndMintBatchInvalidMessageValueRelayer() public {
+		uint256 tokenCount = 5;
+		uint256 start = 0;
+
+		bytes memory payload = createBatchPayload(
+			createBatchIds(tokenCount, start),
+			fromWormholeFormat(userAddress)
+		);
+
+		// create batch mint VAA, but with only a single token ID
+		bytes memory batchVaa = craftValidVaa(
+			ethereum,
+			polygonWormholeChain,
+			ethereum.acceptedEmitter,
+			payload
+		);
+
+		(uint256 dustAmount, uint256 gasTokenAmount) = ethereumNft.getAmountsOnMint();
+		ethereum.dustToken.approve(address(ethereumNft), dustAmount);
+
+		// relayer submits transaction, but doesnt send any gas.
+		vm.expectRevert(abi.encodeWithSignature("InvalidMsgValue()"));
+		ethereumNft.receiveAndMintBatch{value: 0}(batchVaa);
 	}
 }

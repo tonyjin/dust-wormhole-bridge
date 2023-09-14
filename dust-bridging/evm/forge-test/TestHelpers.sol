@@ -31,8 +31,12 @@ contract TestY00tsV2 is y00tsV2 {
 		return _exists(tokenId);
 	}
 
-	function getImplementation() public view returns (address) {
+	function getImplementation() external view returns (address) {
 		return _getImplementation();
+	}
+
+	function getMaxBatchSize() external view returns (uint16) {
+		return MAX_BATCH_SIZE;
 	}
 }
 
@@ -59,6 +63,12 @@ contract TestY00tsV3 is y00tsV3 {
 	function getImplementation() external view returns (address) {
 		return _getImplementation();
 	}
+
+	function _parseBatchPayload(
+		bytes memory message
+	) external pure returns (uint256 count, uint256[] memory tokenIds, address recipient) {
+		return parseBatchPayload(message);
+	}
 }
 
 contract TestHelpers is Test {
@@ -76,6 +86,41 @@ contract TestHelpers is Test {
 		WormholeSimulator wormholeSimulator;
 		IWormhole wormhole;
 		bytes32 acceptedEmitter;
+	}
+
+	function createBatchAndMint(
+		TestY00tsV2 nft,
+		address recipient,
+		uint256 len,
+		uint256 start
+	) public returns (uint256[] memory) {
+		uint256[] memory arr = new uint256[](len);
+		for (uint256 i = 0; i < len; i++) {
+			uint256 tokenId = start + i;
+			arr[i] = tokenId;
+
+			nft.mintTestOnly(recipient, uint16(tokenId));
+		}
+		return arr;
+	}
+
+	function createBatchIds(uint256 len, uint256 start) public returns (uint256[] memory) {
+		uint256[] memory arr = new uint256[](len);
+		for (uint256 i = 0; i < len; i++) {
+			arr[i] = start + i;
+		}
+		return arr;
+	}
+
+	function createBatchPayload(
+		uint256[] memory tokenIds,
+		address recipient
+	) public pure returns (bytes memory) {
+		bytes memory payload;
+		for (uint256 i = 0; i < tokenIds.length; i++) {
+			payload = abi.encodePacked(payload, uint16(tokenIds[i]));
+		}
+		return abi.encodePacked(payload, recipient);
 	}
 
 	function toWormholeFormat(address addr) public pure returns (bytes32 whFormat) {
