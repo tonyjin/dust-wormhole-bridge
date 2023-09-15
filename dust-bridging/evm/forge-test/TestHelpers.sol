@@ -186,21 +186,13 @@ contract TestHelpers is Test {
 		uint16 emitterChainId,
 		bytes32 emitterAddress
 	) internal returns (bytes memory) {
-		IWormhole.VM memory vaa = IWormhole.VM({
-			version: 1,
-			timestamp: 0,
-			nonce: 0,
-			emitterChainId: emitterChainId,
-			emitterAddress: emitterAddress,
-			sequence: 0,
-			consistencyLevel: 1,
-			payload: abi.encodePacked(tokenId, evmRecipient),
-			guardianSetIndex: deployed.wormhole.getCurrentGuardianSetIndex(),
-			signatures: new IWormhole.Signature[](0),
-			hash: 0x00
-		});
-
-		return deployed.wormholeSimulator.encodeAndSignMessage(vaa);
+		return
+			craftValidVaa(
+				deployed,
+				emitterChainId,
+				emitterAddress,
+				abi.encodePacked(tokenId, evmRecipient)
+			);
 	}
 
 	function craftValidVaa(
