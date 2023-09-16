@@ -1,5 +1,3 @@
-anvil_avax.log
-anvil_eth.log
 cache
 /lib
 node_modules
@@ -10,3 +8,6 @@ forge-scripts/deploy.out
 ts-types
 dist
 .env
+anvil_polygon.log
+anvil_eth.log
+broadcast-test
