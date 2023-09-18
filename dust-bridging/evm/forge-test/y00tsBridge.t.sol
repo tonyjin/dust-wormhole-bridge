@@ -20,7 +20,7 @@ contract TestY00tsMigration is TestHelpers {
 	using BytesLib for bytes;
 
 	// Wormhole chain IDs for Ethereum and Polygon.
-	uint16 constant polygonWormholeChain = 6;
+	uint16 constant polygonWormholeChain = 5;
 	uint16 constant ethereumWormholeChain = 2;
 	uint16 constant solanaWormholeChain = 1;
 

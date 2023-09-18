@@ -27,7 +27,7 @@ contract y00tsV3 is
 	using SafeERC20 for IERC20;
 
 	// Wormhole chain id that valid vaas must have -- must be Polygon.
-	uint16 constant SOURCE_CHAIN_ID = 6;
+	uint16 constant SOURCE_CHAIN_ID = 5;
 	uint256 private constant MAX_EXPIRE_TIME =
 		0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
 
