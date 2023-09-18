@@ -1,5 +1,6 @@
 cache
 /lib
+deploy.out
 node_modules
 out
 out.log

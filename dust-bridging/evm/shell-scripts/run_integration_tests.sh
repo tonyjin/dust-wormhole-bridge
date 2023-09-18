@@ -12,7 +12,7 @@ anvil \
     --port 8546 \
     --fork-url $ETH_FORK_RPC > anvil_eth.log &
 
-# avalanche fuji testnet
+# polygon fuji testnet
 anvil \
     -m "myth like bonus scare over problem client lizard pioneer submit female collect" \
     --port 8547 \
@@ -23,12 +23,20 @@ sleep 2
 ## first key from mnemonic above
 export PRIVATE_KEY=$WALLET_PRIVATE_KEY
 
-# mkdir -p cache
-# cp -v foundry.toml cache/foundry.toml
-# cp -v foundry-test.toml foundry.toml
+mkdir -p cache
+cp -v foundry.toml cache/foundry.toml
+cp -v foundry-test.toml foundry.toml
 
-# echo "overriding foundry.toml"
-# mv -v cache/foundry.toml foundry.toml
+EVM_ROOT=$(dirname $0)/..
+
+echo "deploying y00tsV3"
+forge script $EVM_ROOT/script/deploy_y00tsV3.sol \
+    --rpc-url http://localhost:8546 \
+    --private-key $PRIVATE_KEY \
+    --broadcast --slow >> deploy.out 2>&1
+
+echo "overriding foundry.toml"
+mv -v cache/foundry.toml foundry.toml
 
 ## run tests here
 npx ts-mocha -t 1000000 ts/test/*.ts
