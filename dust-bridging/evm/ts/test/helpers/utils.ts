@@ -1,13 +1,6 @@
 import { ethers } from "ethers";
 import { ChainId, tryNativeToHexString } from "@certusone/wormhole-sdk";
-import {
-  WORMHOLE_MESSAGE_EVENT_ABI,
-  WORMHOLE_TOPIC,
-  SWAP_TOPIC,
-  SWAP_EVENT_ABI,
-  TRANSFER_EVENT_ABI,
-  TRANSFER_EVENT_TOPIC,
-} from "./const";
+import { WORMHOLE_MESSAGE_EVENT_ABI, WORMHOLE_TOPIC } from "./const";
 import * as fs from "fs";
 
 export function readY00tsV3Proxy(): string {
@@ -75,6 +68,19 @@ export async function formatWormholeMessageFromReceipt(
 
     // append the observation to the results buffer array
     results.push(Buffer.from(encodedObservation.substring(2), "hex"));
+  }
+
+  return results;
+}
+
+export function sortTokenIds(tokenIds: number[]): ethers.BigNumber[] {
+  tokenIds.sort(function (a, b) {
+    return a - b;
+  });
+
+  let results: ethers.BigNumber[] = [];
+  for (const tokenId of tokenIds) {
+    results.push(ethers.BigNumber.from(tokenId));
   }
 
   return results;

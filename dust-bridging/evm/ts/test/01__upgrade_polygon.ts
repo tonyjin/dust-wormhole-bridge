@@ -47,7 +47,7 @@ describe("Polygon y00tsV2 Upgrade", () => {
   });
 
   it("Upgrade", async () => {
-    // Start prank (impersonate the attesterManager).
+    // Start prank (impersonate the owner).
     await polyProvider.send("anvil_impersonateAccount", [POLYGON_YOOTS_OWNER]);
 
     // Connect to the contract using the impersonated account.

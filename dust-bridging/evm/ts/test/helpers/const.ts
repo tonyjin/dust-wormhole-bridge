@@ -11,6 +11,12 @@ export const POLYGON_YOOTS = process.env.POLYGON_YOOTS!;
 export const POLYGON_YOOTS_OWNER = process.env.POLYGON_YOOTS_OWNER!;
 export const POLYGON_DUST = process.env.POLYGON_DUST!;
 export const POLYGON_MINTER = process.env.POLYGON_MINTER!;
+export const POLYGON_YOOTS_HOLDER = process.env.POLYGON_YOOTS_HOLDER!;
+export const POLYGON_HOLDER_INVENTORY: number[] = [
+  162, 217, 238, 614, 653, 696, 811, 924, 951, 1208, 1371, 1420, 1463, 1646,
+  1843, 1961, 1962, 2530, 2703, 2787, 2801, 2995, 3001, 3188, 3262, 3266, 3555,
+  3600, 3801, 4042, 4139, 4179, 4651, 4724, 4776,
+];
 
 // global
 export const WORMHOLE_MESSAGE_FEE = ethers.BigNumber.from(

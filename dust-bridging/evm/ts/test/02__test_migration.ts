@@ -6,6 +6,7 @@ import { IWormhole__factory } from "@certusone/wormhole-sdk/lib/cjs/ethers-contr
 import {
   readY00tsV3Proxy,
   formatWormholeMessageFromReceipt,
+  sortTokenIds,
 } from "./helpers/utils";
 import {
   POLYGON_LOCALHOST,
@@ -20,6 +21,8 @@ import {
   POLYGON_YOOTS_OWNER,
   DEPRECATED_ERROR,
   ETH_WORMHOLE_ADDRESS,
+  POLYGON_YOOTS_HOLDER,
+  POLYGON_HOLDER_INVENTORY,
 } from "./helpers/const";
 import {
   MockGuardians,
@@ -46,7 +49,7 @@ describe("Ethereum Migration", () => {
     ethProvider
   );
 
-  // MockGuardians and MockCircleAttester objects
+  // MockGuardians
   const guardians = new MockGuardians(WORMHOLE_GUARDIAN_SET_INDEX, [
     GUARDIAN_PRIVATE_KEY,
   ]);
@@ -76,8 +79,8 @@ describe("Ethereum Migration", () => {
       localVars["msgFromSolana"] = guardians.addSignatures(msgFromSolana, [0]);
     });
 
-    it("Cannot Invoke `UpdateAmountsOnMint` (Deprecated)", async () => {
-      // Start prank (impersonate the attesterManager).
+    it("Cannot Invoke `UpdateAmountsOnMint` On Polygon (Deprecated)", async () => {
+      // Start prank.
       await polyProvider.send("anvil_impersonateAccount", [
         POLYGON_YOOTS_OWNER,
       ]);
@@ -103,7 +106,7 @@ describe("Ethereum Migration", () => {
       ]);
     });
 
-    it("Cannot Invoke `getAmountsOnMint` (Deprecated)", async () => {
+    it("Cannot Invoke `getAmountsOnMint` On Polygon (Deprecated)", async () => {
       // Try to call the `getAmountsOnMint` function
       let failed: boolean = false;
       try {
@@ -114,7 +117,7 @@ describe("Ethereum Migration", () => {
       }
     });
 
-    it("Cannot Invoke `ReceiveAndMint` (Deprecated)", async () => {
+    it("Cannot Invoke `ReceiveAndMint` On Polygon (Deprecated)", async () => {
       // Try to call the `receiveAndMint` function and post the Solana VAA.
       let failed: boolean = false;
       try {
@@ -130,7 +133,7 @@ describe("Ethereum Migration", () => {
       }
     });
 
-    it("Invoke `forwardMessage`", async () => {
+    it("Invoke `forwardMessage` On Polygon", async () => {
       const receipt = await polygon
         .forwardMessage(localVars["msgFromSolana"])
         .then(async (tx: ethers.ContractTransaction) => {
@@ -193,6 +196,192 @@ describe("Ethereum Migration", () => {
         ethRecipient.address
       );
       expect(ethBalanceAfter.sub(ethBalanceBefore).eq(nativeAmount)).to.be.true;
+    });
+
+    after(async () => {
+      // Clear local vars.
+      localVars = {};
+    });
+  });
+
+  describe("Test Migration From Polygon to Ethereum", () => {
+    it("Invoke `burnAndSend` on Polygon", async () => {
+      // Start prank.
+      await polyProvider.send("anvil_impersonateAccount", [
+        POLYGON_YOOTS_HOLDER,
+      ]);
+
+      // Token to burn and balance of holder.
+      const tokenToBurn = ethers.BigNumber.from(POLYGON_HOLDER_INVENTORY[0]);
+      const balanceBefore = await polygon.balanceOf(POLYGON_YOOTS_HOLDER);
+
+      // Burn the nft and send to recipient wallet.
+      const receipt = await polygon
+        .connect(polyProvider.getSigner(POLYGON_YOOTS_HOLDER))
+        .burnAndSend(tokenToBurn, ethRecipient.address)
+        .then(async (tx: ethers.ContractTransaction) => {
+          const receipt = await tx.wait();
+          return receipt;
+        })
+        .catch((msg) => {
+          // should not happen
+          console.log(msg);
+          return null;
+        });
+      expect(receipt).is.not.null;
+
+      // Fetch the balance of the recipient after the burn.
+      const balanceAfter = await polygon.balanceOf(POLYGON_YOOTS_HOLDER);
+      expect(balanceBefore.sub(balanceAfter).toNumber()).to.equal(1);
+
+      // Fetch the forwarded message and sign it.
+      const unsignedMessages = await formatWormholeMessageFromReceipt(
+        receipt!,
+        CHAIN_ID_POLYGON
+      );
+      expect(unsignedMessages.length).to.equal(1);
+
+      localVars["sendMsgFromPolygon"] = guardians.addSignatures(
+        unsignedMessages[0],
+        [0]
+      );
+
+      // End prank.
+      await polyProvider.send("anvil_stopImpersonatingAccount", [
+        POLYGON_YOOTS_HOLDER,
+      ]);
+    });
+
+    it("Invoke `receiveAndMint` on Ethereum", async () => {
+      // Fetch the balance of the recipient before the mint.
+      const balanceBefore = await ethereum.balanceOf(ethRecipient.address);
+      const ethBalanceBefore = await ethProvider.getBalance(
+        ethRecipient.address
+      );
+
+      const [_, nativeAmount] = await ethereum.getAmountsOnMint();
+
+      const receipt = await ethereum
+        .receiveAndMint(localVars["sendMsgFromPolygon"], {
+          value: nativeAmount,
+        })
+        .then(async (tx: ethers.ContractTransaction) => {
+          const receipt = await tx.wait();
+          return receipt;
+        })
+        .catch((msg) => {
+          // should not happen
+          console.log(msg);
+          return null;
+        });
+      expect(receipt).is.not.null;
+
+      // Fetch the balance of the recipient after the mint.
+      const balanceAfter = await ethereum.balanceOf(ethRecipient.address);
+      const ethBalanceAfter = await ethProvider.getBalance(
+        ethRecipient.address
+      );
+
+      // Confirm balance changes.
+      expect(balanceAfter.sub(balanceBefore).toNumber()).to.equal(1);
+      expect(await ethereum.ownerOf(SOLANA_TEST_YOOT)).to.equal(
+        ethRecipient.address
+      );
+      expect(ethBalanceAfter.sub(ethBalanceBefore).eq(nativeAmount)).to.be.true;
+    });
+
+    it("Invoke `burnAndSendBatch` on Polygon", async () => {
+      // Start prank.
+      await polyProvider.send("anvil_impersonateAccount", [
+        POLYGON_YOOTS_HOLDER,
+      ]);
+
+      // Create ordered array of tokens to burn.
+      const numY00ts = 4;
+      const tokensToBurn = sortTokenIds(POLYGON_HOLDER_INVENTORY.slice(1, 5));
+      expect(tokensToBurn.length).to.equal(numY00ts);
+
+      const balanceBefore = await polygon.balanceOf(POLYGON_YOOTS_HOLDER);
+
+      // Burn the nft batch and send to recipient wallet.
+      const receipt = await polygon
+        .connect(polyProvider.getSigner(POLYGON_YOOTS_HOLDER))
+        .burnAndSendBatch(tokensToBurn, ethRecipient.address)
+        .then(async (tx: ethers.ContractTransaction) => {
+          const receipt = await tx.wait();
+          return receipt;
+        })
+        .catch((msg) => {
+          // should not happen
+          console.log(msg);
+          return null;
+        });
+      expect(receipt).is.not.null;
+
+      // Fetch the balance of the recipient after the burn.
+      const balanceAfter = await polygon.balanceOf(POLYGON_YOOTS_HOLDER);
+      expect(balanceBefore.sub(balanceAfter).toNumber()).to.equal(numY00ts);
+
+      // Fetch the forwarded message and sign it.
+      const unsignedMessages = await formatWormholeMessageFromReceipt(
+        receipt!,
+        CHAIN_ID_POLYGON
+      );
+      expect(unsignedMessages.length).to.equal(1);
+
+      localVars["batchSendMsgFromPolygon"] = guardians.addSignatures(
+        unsignedMessages[0],
+        [0]
+      );
+      localVars["batchSize"] = numY00ts;
+      localVars["batch"] = tokensToBurn;
+
+      // End prank.
+      await polyProvider.send("anvil_stopImpersonatingAccount", [
+        POLYGON_YOOTS_HOLDER,
+      ]);
+    });
+
+    it("Invoke `receiveAndMintBatch` on Ethereum", async () => {
+      // Fetch the balance of the recipient before the mint.
+      const balanceBefore = await ethereum.balanceOf(ethRecipient.address);
+      const ethBalanceBefore = await ethProvider.getBalance(
+        ethRecipient.address
+      );
+
+      const [_, nativeAmount] = await ethereum.getAmountsOnMint();
+
+      const receipt = await ethereum
+        .receiveAndMintBatch(localVars["batchSendMsgFromPolygon"], {
+          value: nativeAmount,
+        })
+        .then(async (tx: ethers.ContractTransaction) => {
+          const receipt = await tx.wait();
+          return receipt;
+        })
+        .catch((msg) => {
+          // should not happen
+          console.log(msg);
+          return null;
+        });
+      expect(receipt).is.not.null;
+
+      // Fetch the balance of the recipient after the mint.
+      const balanceAfter = await ethereum.balanceOf(ethRecipient.address);
+      const ethBalanceAfter = await ethProvider.getBalance(
+        ethRecipient.address
+      );
+
+      // Confirm balance changes.
+      expect(balanceAfter.sub(balanceBefore).toNumber()).to.equal(
+        localVars["batchSize"]
+      );
+      expect(ethBalanceAfter.sub(ethBalanceBefore).eq(nativeAmount)).to.be.true;
+
+      // Loop through the batch of tokenIds and confirm ownership.
+      for (const tokenId of localVars["batch"]) {
+        expect(await ethereum.ownerOf(tokenId)).to.equal(ethRecipient.address);
+      }
     });
   });
 });
