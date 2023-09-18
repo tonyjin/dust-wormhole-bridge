@@ -36,7 +36,6 @@ describe("Environment Test", () => {
       const provider = new ethers.providers.StaticJsonRpcProvider(
         ETH_LOCALHOST
       );
-      console.log(ETH_WORMHOLE_ADDRESS);
       const wormhole = IWormhole__factory.connect(
         ETH_WORMHOLE_ADDRESS,
         provider
