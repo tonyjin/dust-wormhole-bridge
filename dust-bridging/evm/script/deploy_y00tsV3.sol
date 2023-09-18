@@ -18,7 +18,7 @@ contract ContractScript is Script {
 	bytes32 constant minterAddress =
 		0x000000000000000000000000670fd103b1a08628e9557cD66B87DeD841115190; // Polygon y00tsV2 contract
 	uint256 constant dustAmountOnMint = 0;
-	uint256 constant gasTokenAmountOnMint = 0 ether;
+	uint256 constant gasTokenAmountOnMint = 1e17; // 0.1 ETHER
 	address constant royaltyReceiver = 0xa45D808eAFDe8B8E6B6B078fd246e28AD13030E8;
 	uint96 constant royaltyFeeNumerator = 333;
 	bytes constant baseUri = "https://metadata.y00ts.com/y/";

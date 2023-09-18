@@ -10,12 +10,14 @@ fi
 anvil \
     -m "myth like bonus scare over problem client lizard pioneer submit female collect" \
     --port 8546 \
+    --fork-block-number $ETH_FORK_BLOCK \
     --fork-url $ETH_FORK_RPC > anvil_eth.log &
 
 # polygon fuji testnet
 anvil \
     -m "myth like bonus scare over problem client lizard pioneer submit female collect" \
     --port 8547 \
+    --fork-block-number $POLYGON_FORK_BLOCK \
     --fork-url $POLYGON_FORK_RPC > anvil_polygon.log &
 
 sleep 2

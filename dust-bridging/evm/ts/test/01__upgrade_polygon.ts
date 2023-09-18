@@ -28,9 +28,6 @@ describe("Polygon y00tsV2 Upgrade", () => {
   let localVars: any = {};
 
   it("Deploy Implementation", async () => {
-    // Start prank (impersonate the attesterManager).
-    await polyProvider.send("anvil_impersonateAccount", [POLYGON_YOOTS_OWNER]);
-
     const factory = new ethers.ContractFactory(
       abiFile.abi,
       abiFile.bytecode.object,
@@ -47,11 +44,6 @@ describe("Polygon y00tsV2 Upgrade", () => {
 
     // Save deployed address.
     localVars.implementation = deployTx.address;
-
-    // End prank.
-    await polyProvider.send("anvil_stopImpersonatingAccount", [
-      POLYGON_YOOTS_OWNER,
-    ]);
   });
 
   it("Upgrade", async () => {
