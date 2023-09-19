@@ -110,6 +110,10 @@ contract y00tsV3 is
 		_setDefaultRoyalty(royaltyReceiver, royaltyFeeNumerator);
 	}
 
+	/**
+	 * @notice Updates the amount of DUST and gas token (ETH, MATIC, etc.) to transfer to the recipient
+	 * of a minted NFT. Only the owner of the contract can call this method.
+	 */
 	function updateAmountsOnMint(
 		uint256 dustAmountOnMint,
 		uint256 gasTokenAmountOnMint
@@ -118,6 +122,10 @@ contract y00tsV3 is
 		_gasTokenAmountOnMint = gasTokenAmountOnMint;
 	}
 
+	/**
+	 * @notice Returns the amount of DUST and gas token (ETH, MATIC, etc.) to transfer to the recipient
+	 * of a minted NFT.
+	 */
 	function getAmountsOnMint()
 		external
 		view
@@ -128,11 +136,11 @@ contract y00tsV3 is
 	}
 
 	/**
-	 * Mints an NFT based on an valid VAA and kickstarts the recipient's wallet with
-	 *   gas tokens (ETH or MATIC) and DUST (taken from msg.sender unless msg.sender is recipient).
-	 * TokenId and recipient address are taken from the VAA.
-	 * The Wormhole message must have been published by the DeBridge instance of the
-	 *   NFT collection with the specified emitter on Solana (chainId = 1).
+	 * @notice Mints an NFT based on a valid VAA and kickstarts the recipient's wallet with
+	 * gas tokens (ETH or MATIC) and DUST (taken from msg.sender unless msg.sender is recipient).
+	 * @param vaa Wormhole message that must have been published by the Polygon Y00tsV2 instance
+	 * of the NFT collection with the specified emitter on Polygon (chainId = 5). The VAA contains
+	 * a single token ID and a recipient address.
 	 */
 	function receiveAndMint(bytes calldata vaa) external payable {
 		IWormhole.VM memory vm = verifyMintMessage(vaa);
@@ -144,6 +152,13 @@ contract y00tsV3 is
 		handleGasDropOff(evmRecipient);
 	}
 
+	/**
+	 * @notice Mints a batch of NFTs based on a valid VAA and kickstarts the recipient's wallet with
+	 * gas tokens (ETH or MATIC) and DUST (taken from msg.sender unless msg.sender is recipient).
+	 * @param vaa Wormhole message that must have been published by the Polygon Y00tsV2 instance
+	 * of the NFT collection with the specified emitter on Polygon (chainId = 5). The VAA contains
+	 * a list of token IDs and a recipient address.
+	 */
 	function receiveAndMintBatch(bytes calldata vaa) external payable {
 		IWormhole.VM memory vm = verifyMintMessage(vaa);
 

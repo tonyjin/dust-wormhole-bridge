@@ -58,6 +58,12 @@ contract y00ts is
 	// Dictionary of VAA hash => flag that keeps track of claimed VAAs
 	mapping(bytes32 => bool) private _claimedVaas;
 
+	/**
+	 * SECURITY: State variables should NOT be added to this file. Adding state variables
+	 * this file will cause a storage collision. Be sure to add new state variables
+	 * to the y00tsV2 contract that inherits this contract.
+	 */
+
 	error WrongEmitterChainId();
 	error WrongEmitterAddress();
 	error FailedVaaParseAndVerification(string reason);
@@ -121,6 +127,13 @@ contract y00ts is
 		_setDefaultRoyalty(royaltyReceiver, royaltyFeeNumerator);
 	}
 
+	/**
+	 * @notice Receives a valid VAA from Solana and creates a new VAA to be delivered
+	 * to the Ethereum chain with the same payload.
+	 * @param vaa Wormhole message that must have been published by the DeBridge
+	 * instance of the NFT collection with the specified emitter on Solana. The VAA
+	 * contains a single token ID and a recipient address.
+	 */
 	function forwardMessage(bytes calldata vaa) external payable {
 		// Even though this message is being forwarded to Ethereum, we still
 		// need to verify that it was sent from the trusted Solana contract,
@@ -151,6 +164,12 @@ contract y00ts is
 		);
 	}
 
+	/**
+	 * @notice Burns an existing y00t NFT and sends a VAA to Ethereum to mint
+	 * a new y00t NFT with the same token ID.
+	 * @param tokenId ID of the token to be burned by Polygon and minted on Ethereum.
+	 * @param recipient Address of the recipient of the new token on Ethereum.
+	 */
 	function burnAndSend(uint256 tokenId, address recipient) external payable {
 		uint256[] memory tokenIds = new uint256[](1);
 		tokenIds[0] = tokenId;
@@ -158,6 +177,12 @@ contract y00ts is
 		_burnAndSend(tokenIds, 1, recipient);
 	}
 
+	/**
+	 * @notice Burns a list of existing y00t NFTs and sends a VAA to Ethereum to mint
+	 * new y00t NFTs with the same token IDs.
+	 * @param tokenIds Array of token IDs to be burned on Polygon and minted on Ethereum.
+	 * @param recipient Address of the recipient of the new token on Ethereum.
+	 */
 	function burnAndSend(uint256[] calldata tokenIds, address recipient) external payable {
 		uint256 tokenCount = tokenIds.length;
 		if (tokenCount < MIN_BATCH_SIZE || tokenCount > MAX_BATCH_SIZE) {
