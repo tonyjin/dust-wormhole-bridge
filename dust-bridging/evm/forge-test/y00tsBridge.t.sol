@@ -11,6 +11,11 @@ import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
+import {IERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
+import {IERC2981Upgradeable} from "@openzeppelin/contracts-upgradeable/interfaces/IERC2981Upgradeable.sol";
+import {IERC5058Upgradeable} from "ERC5058/IERC5058Upgradeable.sol";
+import {IERC5192} from "ERC5192/IERC5192.sol";
+
 import {MockDust} from "./MockDust.sol";
 
 import "forge-std/Test.sol";
@@ -128,7 +133,25 @@ contract TestY00tsMigration is TestHelpers {
 	}
 
 	/**
-	 * TESTS
+	 * ERC165 Test
+	 */
+
+	function testSupportsInterfaceY00tsV2() public {
+		assertTrue(ethereumNft.supportsInterface(type(IERC5192).interfaceId));
+		assertTrue(ethereumNft.supportsInterface(type(IERC5058Upgradeable).interfaceId));
+		assertTrue(ethereumNft.supportsInterface(type(IERC2981Upgradeable).interfaceId));
+		assertTrue(ethereumNft.supportsInterface(type(IERC721Upgradeable).interfaceId));
+	}
+
+	function testSupportsInterfaceY00tsV3() public {
+		assertTrue(polygonNft.supportsInterface(type(IERC5192).interfaceId));
+		assertTrue(polygonNft.supportsInterface(type(IERC5058Upgradeable).interfaceId));
+		assertTrue(polygonNft.supportsInterface(type(IERC2981Upgradeable).interfaceId));
+		assertTrue(polygonNft.supportsInterface(type(IERC721Upgradeable).interfaceId));
+	}
+
+	/**
+	 * Admin Tests
 	 */
 
 	function testUpgradeY00tsV2() public {
@@ -185,19 +208,227 @@ contract TestY00tsMigration is TestHelpers {
 		TestY00tsV2(address(ethereumNft)).upgradeTo(newImplementation);
 	}
 
-	function testCannotReceiveAndMintOnPolygon(uint16 tokenId) public {
-		vm.assume(tokenId < maxY00tsSupply);
+	function testUpdateAmountsOnMintY00tsV3(
+		uint256 newDustAmount,
+		uint256 newGasTokenAmount
+	) public {
+		// update the dust and gas token amounts
+		ethereumNft.updateAmountsOnMint(newDustAmount, newGasTokenAmount);
 
-		bytes memory mintVaa = craftValidVaa(
-			polygon,
-			tokenId,
-			fromWormholeFormat(userAddress),
-			solanaWormholeChain,
-			polygon.acceptedEmitter
-		);
+		// verify the new amounts
+		(uint256 dustAmount, uint256 gasTokenAmount) = ethereumNft.getAmountsOnMint();
+		assertEq(dustAmount, newDustAmount);
+		assertEq(gasTokenAmount, newGasTokenAmount);
+	}
+
+	function testCannotUpdateAmountsOnMintY00tsV3OwnerOnly() public {
+		uint256 newDustAmount = 69420;
+		uint256 newGasTokenAmount = 42069;
+
+		vm.prank(makeAddr("0xdeadbeef"));
+		vm.expectRevert("Ownable: caller is not the owner");
+		ethereumNft.updateAmountsOnMint(newDustAmount, newGasTokenAmount);
+	}
+
+	function testCannotUpdateAmountsOnMintY00tsV2Deprecated() public {
+		uint256 newDustAmount = 69420;
+		uint256 newGasTokenAmount = 42069;
 
 		vm.expectRevert(abi.encodeWithSignature("Deprecated()"));
-		polygonNft.receiveAndMint(mintVaa);
+		polygonNft.updateAmountsOnMint(newDustAmount, newGasTokenAmount);
+	}
+
+	function testCannotGetAmountsOnMintY00tsV2Deprecated() public {
+		vm.expectRevert(abi.encodeWithSignature("Deprecated()"));
+		polygonNft.getAmountsOnMint();
+	}
+
+	function testLockedY00tsV3() public {
+		uint256 tokenId = 5;
+		address owner = makeAddr("owner");
+
+		vm.startPrank(owner);
+
+		ethereumNft.mintTestOnly(owner, uint16(tokenId));
+
+		assertFalse(ethereumNft.locked(tokenId));
+
+		// lock the token
+		ethereumNft.lock(
+			tokenId,
+			0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+		);
+		assertTrue(ethereumNft.locked(tokenId));
+
+		// unlock the token
+		ethereumNft.unlock(tokenId);
+		assertFalse(ethereumNft.locked(tokenId));
+
+		vm.stopPrank();
+	}
+
+	function testLockedY00tsV2() public {
+		uint256 tokenId = 5;
+		address owner = makeAddr("owner");
+
+		polygonNft.mintTestOnly(owner, uint16(tokenId));
+
+		vm.startPrank(owner);
+
+		assertFalse(polygonNft.locked(tokenId));
+
+		// lock the token
+		polygonNft.lock(
+			tokenId,
+			0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+		);
+		assertTrue(polygonNft.locked(tokenId));
+
+		// unlock the token
+		polygonNft.unlock(tokenId);
+		assertFalse(polygonNft.locked(tokenId));
+
+		vm.stopPrank();
+	}
+
+	function testCannotLockAutoExpoNotSupportedY00tsV3() public {
+		uint256 tokenId = 5;
+		address owner = makeAddr("owner");
+
+		ethereumNft.mintTestOnly(owner, uint16(tokenId));
+
+		vm.prank(owner);
+
+		vm.expectRevert("Auto expiration is not supported.");
+		ethereumNft.lock(
+			tokenId,
+			10 // nonzero or non-max value
+		);
+	}
+
+	function testCannotLockAutoExpoNotSupportedY00tsV2() public {
+		uint256 tokenId = 5;
+		address owner = makeAddr("owner");
+
+		polygonNft.mintTestOnly(owner, uint16(tokenId));
+
+		vm.prank(owner);
+
+		vm.expectRevert("Auto expiration is not supported.");
+		polygonNft.lock(
+			tokenId,
+			10 // nonzero or non-max value
+		);
+	}
+
+	/// @notice Royalty info does not exist for the token yet, this allows us to
+	/// test the default royalty info.
+	function testDefaultRoyaltyY00tsV3() public {
+		uint256 salePrice = 1;
+		uint256 tokenId = 69;
+
+		ethereumNft.deleteDefaultRoyalty();
+		{
+			(address royaltyReceiver_, uint256 royaltyAmount) = ethereumNft.royaltyInfo(
+				tokenId,
+				salePrice
+			);
+			assertEq(royaltyReceiver_, address(0));
+			assertEq(royaltyAmount, (salePrice * royaltyFeeNumerator) / 10000);
+		}
+
+		ethereumNft.setDefaultRoyalty(royaltyReceiver, royaltyFeeNumerator);
+		{
+			(address royaltyReceiver_, uint256 royaltyAmount) = ethereumNft.royaltyInfo(
+				tokenId,
+				salePrice
+			);
+			assertEq(royaltyReceiver_, royaltyReceiver);
+			assertEq(royaltyAmount, (salePrice * royaltyFeeNumerator) / 10000);
+		}
+	}
+
+	/// @notice Royalty info does not exist for the token yet, this allows us to
+	/// test the default royalty info.
+	function testDefaultRoyaltyY00tsV2() public {
+		uint256 salePrice = 1;
+		uint256 tokenId = 69;
+
+		polygonNft.deleteDefaultRoyalty();
+		{
+			(address royaltyReceiver_, uint256 royaltyAmount) = polygonNft.royaltyInfo(
+				tokenId,
+				salePrice
+			);
+			assertEq(royaltyReceiver_, address(0));
+			assertEq(royaltyAmount, (salePrice * royaltyFeeNumerator) / 10000);
+		}
+
+		polygonNft.setDefaultRoyalty(royaltyReceiver, royaltyFeeNumerator);
+		{
+			(address royaltyReceiver_, uint256 royaltyAmount) = polygonNft.royaltyInfo(
+				tokenId,
+				salePrice
+			);
+			assertEq(royaltyReceiver_, royaltyReceiver);
+			assertEq(royaltyAmount, (salePrice * royaltyFeeNumerator) / 10000);
+		}
+	}
+
+	function testTokenRoyaltyY00tsV3() public {
+		uint256 salePrice = 1;
+		uint256 tokenId = 69;
+		uint96 newFeeNumerator = 250;
+		address newRoyaltyReceiver = makeAddr("newRoyaltyReceiver");
+
+		ethereumNft.setTokenRoyalty(tokenId, newRoyaltyReceiver, newFeeNumerator);
+		{
+			(address royaltyReceiver_, uint256 royaltyAmount) = ethereumNft.royaltyInfo(
+				tokenId,
+				salePrice
+			);
+			assertEq(royaltyReceiver_, newRoyaltyReceiver);
+			assertEq(royaltyAmount, (salePrice * newFeeNumerator) / 10000);
+		}
+
+		ethereumNft.resetTokenRoyalty(tokenId);
+		{
+			(address royaltyReceiver_, uint256 royaltyAmount) = ethereumNft.royaltyInfo(
+				tokenId,
+				salePrice
+			);
+			// NOTE: should revert back to default
+			assertEq(royaltyReceiver_, royaltyReceiver); // default
+			assertEq(royaltyAmount, (salePrice * royaltyFeeNumerator) / 10000);
+		}
+	}
+
+	function testTokenRoyaltyY00tsV2() public {
+		uint256 salePrice = 1;
+		uint256 tokenId = 69;
+		uint96 newFeeNumerator = 250;
+		address newRoyaltyReceiver = makeAddr("newRoyaltyReceiver");
+
+		polygonNft.setTokenRoyalty(tokenId, newRoyaltyReceiver, newFeeNumerator);
+		{
+			(address royaltyReceiver_, uint256 royaltyAmount) = polygonNft.royaltyInfo(
+				tokenId,
+				salePrice
+			);
+			assertEq(royaltyReceiver_, newRoyaltyReceiver);
+			assertEq(royaltyAmount, (salePrice * newFeeNumerator) / 10000);
+		}
+
+		polygonNft.resetTokenRoyalty(tokenId);
+		{
+			(address royaltyReceiver_, uint256 royaltyAmount) = polygonNft.royaltyInfo(
+				tokenId,
+				salePrice
+			);
+			// NOTE: should revert back to default
+			assertEq(royaltyReceiver_, royaltyReceiver); // default
+			assertEq(royaltyAmount, (salePrice * royaltyFeeNumerator) / 10000);
+		}
 	}
 
 	/**
@@ -307,6 +538,21 @@ contract TestY00tsMigration is TestHelpers {
 	 * Receive and Mint Tests
 	 */
 
+	function testCannotReceiveAndMintOnPolygon(uint16 tokenId) public {
+		vm.assume(tokenId < maxY00tsSupply);
+
+		bytes memory mintVaa = craftValidVaa(
+			polygon,
+			tokenId,
+			fromWormholeFormat(userAddress),
+			solanaWormholeChain,
+			polygon.acceptedEmitter
+		);
+
+		vm.expectRevert(abi.encodeWithSignature("Deprecated()"));
+		polygonNft.receiveAndMint(mintVaa);
+	}
+
 	function testReceiveAndMintOnEthereum(uint16 tokenId) public {
 		vm.assume(tokenId < maxY00tsSupply);
 
@@ -342,6 +588,94 @@ contract TestY00tsMigration is TestHelpers {
 
 		assertEq(ethereumNft.ownerOf(tokenId), fromWormholeFormat(userAddress));
 		assertBalanceCheckInbound(beforeBal, afterBal, dustAmount, gasTokenAmount, 1);
+	}
+
+	function testReceiveAndMintOnEthereumSelfRedemption(uint16 tokenId) public {
+		vm.assume(tokenId < maxY00tsSupply);
+
+		address recipient = fromWormholeFormat(userAddress);
+
+		// craft a VAA sent from the Polygon contract to Ethereum
+		bytes memory mintVaa = craftValidVaa(
+			ethereum,
+			tokenId,
+			recipient,
+			polygonWormholeChain, // emitter chainId
+			ethereum.acceptedEmitter
+		);
+
+		// We need to balance check after dealing the dust token.
+		Balances memory beforeBal = getBalances(
+			ethereum,
+			ethereumNft,
+			fromWormholeFormat(userAddress),
+			address(this)
+		);
+
+		// self redeem
+		vm.prank(recipient);
+		ethereumNft.receiveAndMint{value: 0}(mintVaa);
+
+		Balances memory afterBal = getBalances(
+			ethereum,
+			ethereumNft,
+			fromWormholeFormat(userAddress),
+			address(this)
+		);
+
+		assertEq(ethereumNft.ownerOf(tokenId), fromWormholeFormat(userAddress));
+		assertBalanceCheckInbound(beforeBal, afterBal, 0, 0, 1);
+	}
+
+	function testCannotReceiveAndMintOnEthereumSelfRedemptionWithValue() public {
+		uint16 tokenId = 5;
+		address recipient = fromWormholeFormat(userAddress);
+
+		// craft a VAA sent from the Polygon contract to Ethereum
+		bytes memory mintVaa = craftValidVaa(
+			ethereum,
+			tokenId,
+			recipient,
+			polygonWormholeChain, // emitter chainId
+			ethereum.acceptedEmitter
+		);
+
+		// self redeem
+		vm.prank(recipient);
+		vm.expectRevert(); // forge is not reverting with data here (bug)
+		ethereumNft.receiveAndMint{value: 1}(mintVaa);
+	}
+
+	function testCannotReceiveAndMintOnEthereumInvalidMsgValue() public {
+		uint16 tokenId = 5;
+		address recipient = fromWormholeFormat(userAddress);
+
+		// craft a VAA sent from the Polygon contract to Ethereum
+		bytes memory mintVaa = craftValidVaa(
+			ethereum,
+			tokenId,
+			recipient,
+			polygonWormholeChain, // emitter chainId
+			ethereum.acceptedEmitter
+		);
+
+		require(gasTokenAmountOnMint > 0, "invalid amount");
+
+		// redeem with relayer, but set value to zero
+		vm.expectRevert(); // forge is not reverting with data here (bug)
+		ethereumNft.receiveAndMint{value: 0}(mintVaa);
+	}
+
+	function testCannotReceiveAndMintOnEthereumInvalidMessageLength() public {
+		bytes memory mintVaa = craftValidVaa(
+			ethereum,
+			polygonWormholeChain, // emitter chainId
+			ethereum.acceptedEmitter,
+			hex"deadbeef" // Invalid payload
+		);
+
+		vm.expectRevert(abi.encodeWithSignature("InvalidMessageLength()"));
+		ethereumNft.receiveAndMint{value: gasTokenAmountOnMint}(mintVaa);
 	}
 
 	function testCannotReceiveAndMintOnEthereumWrongEmitterAddress() public {
@@ -408,6 +742,13 @@ contract TestY00tsMigration is TestHelpers {
 		vm.deal(address(this), gasTokenAmount);
 		vm.expectRevert(); // forge is not reverting with data here (bug)
 		ethereumNft.receiveAndMint{value: gasTokenAmount}(mintVaa);
+	}
+
+	function testCannotReceiveAndMintOnEthereumInvalidVaa() public {
+		//craft a VAA sent from the Polygon contract to Ethereum
+		bytes memory mintVaa = hex"deadbeef";
+		vm.expectRevert("vm too small");
+		ethereumNft.receiveAndMint{value: gasTokenAmountOnMint}(mintVaa);
 	}
 
 	function testTokenURIOnEthereum(uint16 tokenId) public {
@@ -524,8 +865,6 @@ contract TestY00tsMigration is TestHelpers {
 	}
 
 	function testCannotForwardMessageInvalidMessageLength() public {
-		uint16 tokenId = 5;
-
 		// craft a VAA sent from the Solana contract to Polygon
 		bytes memory forwardVaa = craftValidVaa(
 			polygon,
@@ -996,7 +1335,7 @@ contract TestY00tsMigration is TestHelpers {
 			payload
 		);
 
-		(uint256 dustAmount, uint256 gasTokenAmount) = ethereumNft.getAmountsOnMint();
+		(uint256 dustAmount, ) = ethereumNft.getAmountsOnMint();
 		ethereum.dustToken.approve(address(ethereumNft), dustAmount);
 
 		// relayer submits transaction, but doesnt send any gas.

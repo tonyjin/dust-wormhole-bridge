@@ -35,7 +35,7 @@ contract TestY00tsV2 is y00tsV2 {
 		return _getImplementation();
 	}
 
-	function getMaxBatchSize() external view returns (uint16) {
+	function getMaxBatchSize() external pure returns (uint16) {
 		return MAX_BATCH_SIZE;
 	}
 }
@@ -104,7 +104,7 @@ contract TestHelpers is Test {
 		return arr;
 	}
 
-	function createBatchIds(uint256 len, uint256 start) public returns (uint256[] memory) {
+	function createBatchIds(uint256 len, uint256 start) public pure returns (uint256[] memory) {
 		uint256[] memory arr = new uint256[](len);
 		for (uint256 i = 0; i < len; i++) {
 			arr[i] = start + i;
