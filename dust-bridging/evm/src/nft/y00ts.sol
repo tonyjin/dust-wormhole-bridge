@@ -33,6 +33,7 @@ contract y00ts is
 	// - 200 is not finalized
 	uint8 constant FINALITY = 201;
 	uint16 constant MAX_BATCH_SIZE = 30;
+	uint16 constant MIN_BATCH_SIZE = 2;
 
 	// -- immutable members (baked into the code by the constructor of the logic contract)
 
@@ -120,32 +121,57 @@ contract y00ts is
 		_setDefaultRoyalty(royaltyReceiver, royaltyFeeNumerator);
 	}
 
-	function burnAndSend(uint256 tokenId, address recipient) external payable {
-		if (!_isApprovedOrOwner(_msgSender(), tokenId)) {
-			revert BurnNotApproved();
-		}
+	function forwardMessage(bytes calldata vaa) external payable {
+		// Even though this message is being forwarded to Ethereum, we still
+		// need to verify that it was sent from the trusted Solana contract,
+		// and that it's a valid VAA. Also, we need to save the VAA hash to
+		// prevent spam. This will prevent the relayer from attempting to
+		// mint the same token on Ethereum multiple times.
+		(IWormhole.VM memory vm, bool valid, string memory reason) = _wormhole.parseAndVerifyVM(
+			vaa
+		);
+		if (!valid) revert FailedVaaParseAndVerification(reason);
 
-		if (recipient == address(0)) {
-			revert RecipientZeroAddress();
-		}
+		if (vm.emitterChainId != SOURCE_CHAIN_ID) revert WrongEmitterChainId();
 
-		_burn(tokenId);
+		if (vm.emitterAddress != _emitterAddress) revert WrongEmitterAddress();
 
-		//send wormhole message
+		if (vm.payload.length != BytesLib.uint16Size + BytesLib.addressSize)
+			revert InvalidMessageLength();
+
+		if (_claimedVaas[vm.hash]) revert VaaAlreadyClaimed();
+
+		_claimedVaas[vm.hash] = true;
+
+		//send new message to Ethereum
 		_wormhole.publishMessage{value: msg.value}(
 			0, //nonce
-			abi.encodePacked(uint16(tokenId), recipient), //payload
+			vm.payload,
 			FINALITY
 		);
 	}
 
-	function burnAndSendBatch(uint256[] calldata tokenIds, address recipient) external payable {
-		uint256 tokenCount = tokenIds.length;
+	function burnAndSend(uint256 tokenId, address recipient) external payable {
+		uint256[] memory tokenIds = new uint256[](1);
+		tokenIds[0] = tokenId;
 
-		if (tokenCount < 2 || tokenCount > MAX_BATCH_SIZE) {
+		_burnAndSend(tokenIds, 1, recipient);
+	}
+
+	function burnAndSend(uint256[] calldata tokenIds, address recipient) external payable {
+		uint256 tokenCount = tokenIds.length;
+		if (tokenCount < MIN_BATCH_SIZE || tokenCount > MAX_BATCH_SIZE) {
 			revert InvalidBatchCount();
 		}
 
+		_burnAndSend(tokenIds, tokenCount, recipient);
+	}
+
+	function _burnAndSend(
+		uint256[] memory tokenIds,
+		uint256 tokenCount,
+		address recipient
+	) internal {
 		if (recipient == address(0)) {
 			revert RecipientZeroAddress();
 		}
@@ -179,36 +205,6 @@ contract y00ts is
 		_wormhole.publishMessage{value: msg.value}(
 			0, //nonce
 			abi.encodePacked(payload, recipient),
-			FINALITY
-		);
-	}
-
-	function forwardMessage(bytes calldata vaa) external payable {
-		// Even though this message is being forwarded to Ethereum, we still
-		// need to verify that it was sent from the trusted Solana contract,
-		// and that it's a valid VAA. Also, we need to save the VAA hash to
-		// prevent spam. This will prevent the relayer from attempting to
-		// mint the same token on Ethereum multiple times.
-		(IWormhole.VM memory vm, bool valid, string memory reason) = _wormhole.parseAndVerifyVM(
-			vaa
-		);
-		if (!valid) revert FailedVaaParseAndVerification(reason);
-
-		if (vm.emitterChainId != SOURCE_CHAIN_ID) revert WrongEmitterChainId();
-
-		if (vm.emitterAddress != _emitterAddress) revert WrongEmitterAddress();
-
-		if (_claimedVaas[vm.hash]) revert VaaAlreadyClaimed();
-
-		_claimedVaas[vm.hash] = true;
-
-		if (vm.payload.length != BytesLib.uint16Size + BytesLib.addressSize)
-			revert InvalidMessageLength();
-
-		//send new message to Ethereum
-		_wormhole.publishMessage{value: msg.value}(
-			0, //nonce
-			vm.payload,
 			FINALITY
 		);
 	}

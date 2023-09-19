@@ -66,7 +66,7 @@ contract TestY00tsV3 is y00tsV3 {
 
 	function _parseBatchPayload(
 		bytes memory message
-	) external pure returns (uint256 count, uint256[] memory tokenIds, address recipient) {
+	) external pure returns (uint256[] memory tokenIds, address recipient) {
 		return parseBatchPayload(message);
 	}
 }

@@ -147,10 +147,9 @@ contract y00tsV3 is
 	function receiveAndMintBatch(bytes calldata vaa) external payable {
 		IWormhole.VM memory vm = verifyMintMessage(vaa);
 
-		(uint256 tokenCount, uint256[] memory tokenIds, address evmRecipient) = parseBatchPayload(
-			vm.payload
-		);
+		(uint256[] memory tokenIds, address evmRecipient) = parseBatchPayload(vm.payload);
 
+		uint256 tokenCount = tokenIds.length;
 		for (uint256 i = 0; i < tokenCount; ) {
 			_safeMint(evmRecipient, tokenIds[i]);
 
@@ -186,7 +185,7 @@ contract y00tsV3 is
 
 	function parseBatchPayload(
 		bytes memory message
-	) internal pure returns (uint256, uint256[] memory, address) {
+	) internal pure returns (uint256[] memory, address) {
 		uint256 messageLength = message.length;
 		uint256 endTokenIndex = messageLength - BytesLib.addressSize;
 		uint256 batchSize = endTokenIndex / BytesLib.uint16Size;
@@ -210,7 +209,7 @@ contract y00tsV3 is
 			}
 		}
 
-		return (batchSize, tokenIds, evmRecipient);
+		return (tokenIds, evmRecipient);
 	}
 
 	function verifyMintMessage(bytes calldata vaa) internal returns (IWormhole.VM memory) {

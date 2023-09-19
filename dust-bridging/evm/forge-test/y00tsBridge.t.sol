@@ -578,7 +578,7 @@ contract TestY00tsMigration is TestHelpers {
 		// burn and send batch
 		vm.deal(spender, wormholeFee);
 		vm.prank(spender);
-		polygonNft.burnAndSendBatch{value: wormholeFee}(tokenIds, recipient);
+		polygonNft.burnAndSend{value: wormholeFee}(tokenIds, recipient);
 
 		// confirm spender's balance is zero and all nfts were burned
 		assertEq(polygonNft.balanceOf(spender), 0);
@@ -617,7 +617,7 @@ contract TestY00tsMigration is TestHelpers {
 		vm.prank(spender);
 
 		vm.expectRevert(abi.encodeWithSignature("InvalidBatchCount()"));
-		polygonNft.burnAndSendBatch{value: wormholeFee}(tokenIds, recipient);
+		polygonNft.burnAndSend{value: wormholeFee}(tokenIds, recipient);
 	}
 
 	function testCannotBurnAndSendBatchOneToken() public {
@@ -635,7 +635,7 @@ contract TestY00tsMigration is TestHelpers {
 		vm.prank(spender);
 
 		vm.expectRevert(abi.encodeWithSignature("InvalidBatchCount()"));
-		polygonNft.burnAndSendBatch{value: wormholeFee}(tokenIds, recipient);
+		polygonNft.burnAndSend{value: wormholeFee}(tokenIds, recipient);
 	}
 
 	function testCannotBurnAndSendBatchTooManyTokens() public {
@@ -653,7 +653,7 @@ contract TestY00tsMigration is TestHelpers {
 		vm.prank(spender);
 
 		vm.expectRevert(abi.encodeWithSignature("InvalidBatchCount()"));
-		polygonNft.burnAndSendBatch{value: wormholeFee}(tokenIds, recipient);
+		polygonNft.burnAndSend{value: wormholeFee}(tokenIds, recipient);
 	}
 
 	function testCannotBurnAndSendBatchRecipientZeroAddress() public {
@@ -671,7 +671,7 @@ contract TestY00tsMigration is TestHelpers {
 		vm.prank(spender);
 
 		vm.expectRevert(abi.encodeWithSignature("RecipientZeroAddress()"));
-		polygonNft.burnAndSendBatch{value: wormholeFee}(tokenIds, recipient);
+		polygonNft.burnAndSend{value: wormholeFee}(tokenIds, recipient);
 	}
 
 	function testCannotBurnAndSendBatchDuplicateTokenIds() public {
@@ -692,7 +692,7 @@ contract TestY00tsMigration is TestHelpers {
 		vm.prank(spender);
 
 		vm.expectRevert(abi.encodeWithSignature("NotAscendingOrDuplicated()"));
-		polygonNft.burnAndSendBatch{value: wormholeFee}(tokenIds, recipient);
+		polygonNft.burnAndSend{value: wormholeFee}(tokenIds, recipient);
 	}
 
 	function testCannotBurnAndSendBatchNotAscendingTokenIds() public {
@@ -715,7 +715,7 @@ contract TestY00tsMigration is TestHelpers {
 		vm.prank(spender);
 
 		vm.expectRevert(abi.encodeWithSignature("NotAscendingOrDuplicated()"));
-		polygonNft.burnAndSendBatch{value: wormholeFee}(tokenIds, recipient);
+		polygonNft.burnAndSend{value: wormholeFee}(tokenIds, recipient);
 	}
 
 	function testCannotBurnAndSendBatchBurnNotApproved() public {
@@ -734,7 +734,7 @@ contract TestY00tsMigration is TestHelpers {
 		vm.prank(notOwner);
 
 		vm.expectRevert(abi.encodeWithSignature("BurnNotApproved()"));
-		polygonNft.burnAndSendBatch{value: wormholeFee}(tokenIds, recipient);
+		polygonNft.burnAndSend{value: wormholeFee}(tokenIds, recipient);
 	}
 
 	function testCannotBurnAndSendBatchBurnNotApprovedSingleToken() public {
@@ -763,7 +763,7 @@ contract TestY00tsMigration is TestHelpers {
 		vm.prank(notOwner);
 
 		vm.expectRevert(abi.encodeWithSignature("BurnNotApproved()"));
-		polygonNft.burnAndSendBatch{value: wormholeFee}(tokenIds, recipient);
+		polygonNft.burnAndSend{value: wormholeFee}(tokenIds, recipient);
 	}
 
 	/**
@@ -780,14 +780,12 @@ contract TestY00tsMigration is TestHelpers {
 		uint256[] memory tokenIds = createBatchIds(tokenCount, start);
 
 		// parse the payload
-		(
-			uint256 parsedTokenCount,
-			uint256[] memory parsedTokenIds,
-			address parsedRecipient
-		) = ethereumNft._parseBatchPayload(createBatchPayload(tokenIds, recipient));
+		(uint256[] memory parsedTokenIds, address parsedRecipient) = ethereumNft._parseBatchPayload(
+			createBatchPayload(tokenIds, recipient)
+		);
 
 		// validate parsed output
-		assertEq(parsedTokenCount, tokenCount);
+		assertEq(parsedTokenIds.length, tokenCount);
 		assertEq(parsedRecipient, recipient);
 		for (uint256 i = 0; i < tokenCount; i++) {
 			assertEq(parsedTokenIds[i], tokenIds[i]);

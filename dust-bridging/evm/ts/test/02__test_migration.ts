@@ -218,7 +218,7 @@ describe("Ethereum Migration", () => {
       // Burn the nft and send to recipient wallet.
       const receipt = await polygon
         .connect(polyProvider.getSigner(POLYGON_YOOTS_HOLDER))
-        .burnAndSend(tokenToBurn, ethRecipient.address)
+        ["burnAndSend(uint256,address)"](tokenToBurn, ethRecipient.address)
         .then(async (tx: ethers.ContractTransaction) => {
           const receipt = await tx.wait();
           return receipt;
@@ -290,7 +290,7 @@ describe("Ethereum Migration", () => {
       expect(ethBalanceAfter.sub(ethBalanceBefore).eq(nativeAmount)).to.be.true;
     });
 
-    it("Invoke `burnAndSendBatch` on Polygon", async () => {
+    it("Invoke `burnAndSend`With Batch on Polygon", async () => {
       // Start prank.
       await polyProvider.send("anvil_impersonateAccount", [
         POLYGON_YOOTS_HOLDER,
@@ -306,7 +306,7 @@ describe("Ethereum Migration", () => {
       // Burn the nft batch and send to recipient wallet.
       const receipt = await polygon
         .connect(polyProvider.getSigner(POLYGON_YOOTS_HOLDER))
-        .burnAndSendBatch(tokensToBurn, ethRecipient.address)
+        ["burnAndSend(uint256[],address)"](tokensToBurn, ethRecipient.address)
         .then(async (tx: ethers.ContractTransaction) => {
           const receipt = await tx.wait();
           return receipt;
@@ -382,6 +382,9 @@ describe("Ethereum Migration", () => {
       for (const tokenId of localVars["batch"]) {
         expect(await ethereum.ownerOf(tokenId)).to.equal(ethRecipient.address);
       }
+
+      // Clear local vars.
+      localVars = {};
     });
   });
 });
