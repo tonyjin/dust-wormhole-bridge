@@ -4,7 +4,7 @@ include env/testing.env
 
 all: build
 
-test: build
+unit-test: build
 	forge test -vv
 
 build: dependencies
@@ -20,6 +20,9 @@ clean:
 .PHONY: integration-test
 integration-test: dependencies build
 	bash shell-scripts/run_integration_tests.sh
+
+.PHONY: test
+test: unit-test integration-test
 
 node_modules:
 	yarn
