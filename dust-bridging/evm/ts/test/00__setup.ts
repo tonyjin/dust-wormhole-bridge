@@ -11,7 +11,6 @@ import {
   ETH_WORMHOLE_ADDRESS,
   POLYGON_LOCALHOST,
   POLYGON_WORMHOLE_ADDRESS,
-  POLYGON_YOOTS,
 } from "./helpers/const";
 
 describe("Environment Test", () => {

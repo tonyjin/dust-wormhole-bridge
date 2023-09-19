@@ -33,6 +33,7 @@ export const SOLANA_TEST_YOOT = process.env.SOLANA_TEST_YOOT!;
 
 // Solidity Smart Contract Errors
 export const DEPRECATED_ERROR = "0xc73b9d7c";
+export const INVALID_MSG_LEN_ERROR = "0x8d0242c9";
 
 // wormhole event ABIs
 export const WORMHOLE_TOPIC =
